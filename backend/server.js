@@ -40,14 +40,31 @@ if (process.env.NODE_ENV === 'production') {
 
 // CORS configuration
 const corsOptions = {
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  origin: function (origin, callback) {
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://localhost:3001',
+      process.env.CORS_ORIGIN,
+      process.env.CORS_ORIGIN?.replace(/\/$/, ''), // Remove trailing slash
+      process.env.CORS_ORIGIN?.replace(/\/$/, '') + '/', // Add trailing slash
+    ].filter(Boolean);
+    
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   optionsSuccessStatus: 200,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
 };
 app.use(cors(corsOptions));
-console.log(`CORS configured for origin: ${corsOptions.origin}`);
+console.log(`CORS configured with dynamic origin checking including: ${process.env.CORS_ORIGIN || 'localhost:3000'}`);
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
