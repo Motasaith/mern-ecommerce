@@ -17,27 +17,35 @@ router.post(
     check('password', 'Please enter a password with 6 or more characters').isLength({ min: 6 }),
   ],
   async (req, res) => {
+    console.log('Registration attempt:', req.body);
+    
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.log('Validation errors:', errors.array());
       return res.status(400).json({ errors: errors.array() });
     }
 
     const { name, email, password } = req.body;
+    console.log('Extracted data:', { name, email, password: password ? '[HIDDEN]' : 'MISSING' });
 
     try {
       let user = await User.findOne({ email });
 
       if (user) {
+        console.log('User already exists with email:', email);
         return res.status(400).json({ errors: [{ msg: 'User already exists' }] });
       }
 
+      console.log('Creating new user...');
       user = new User({
         name,
         email,
         password,
       });
 
+      console.log('Saving user to database...');
       await user.save();
+      console.log('User saved successfully:', user._id);
 
       const payload = {
         user: {
@@ -55,8 +63,15 @@ router.post(
         }
       );
     } catch (err) {
-      console.error(err.message);
-      res.status(500).send('Server error');
+      console.error('Registration error:', err);
+      if (err.name === 'ValidationError') {
+        const errors = Object.values(err.errors).map(e => ({ msg: e.message }));
+        return res.status(400).json({ errors });
+      }
+      if (err.code === 11000) {
+        return res.status(400).json({ errors: [{ msg: 'User already exists' }] });
+      }
+      res.status(500).json({ errors: [{ msg: 'Server error' }] });
     }
   }
 );

@@ -37,6 +37,7 @@ export interface Product {
   brand?: string;
   countInStock: number;
   images: ProductImage[];
+  videos?: ProductVideo[];
   featured: boolean;
   reviews: Review[];
   numReviews: number;
@@ -58,6 +59,11 @@ export interface Product {
 }
 
 export interface ProductImage {
+  public_id: string;
+  url: string;
+}
+
+export interface ProductVideo {
   public_id: string;
   url: string;
 }
@@ -169,7 +175,7 @@ export interface FilterOptions {
   minPrice?: number;
   maxPrice?: number;
   rating?: number;
-  sort?: 'newest' | 'oldest' | 'price-low' | 'price-high' | 'rating' | 'name';
+  sort?: string;
   search?: string;
 }
 

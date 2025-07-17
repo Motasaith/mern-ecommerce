@@ -12,6 +12,7 @@ const {
 } = require('../controllers/adminController');
 const auth = require('../middleware/auth');
 const admin = require('../middleware/admin');
+const upload = require('../middleware/upload');
 
 const router = express.Router();
 
@@ -20,7 +21,8 @@ router.get('/dashboard', auth, admin, getDashboardStats);
 
 // Products
 router.get('/products', auth, admin, getAdminProducts);
-router.post('/products', auth, admin, createProduct);
+router.post('/products', auth, admin, upload, createProduct);
+router.post('/products/simple', auth, admin, createProduct); // Fallback without upload
 router.put('/products/:id', auth, admin, updateProduct);
 router.delete('/products/:id', auth, admin, deleteProduct);
 

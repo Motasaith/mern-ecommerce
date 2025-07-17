@@ -1,6 +1,38 @@
 const Product = require('../models/Product');
 const User = require('../models/User');
 const Order = require('../models/Order');
+const cloudinary = require('../config/cloudinary');
+const { Readable } = require('stream');
+
+// Helper function to upload file to Cloudinary
+const uploadToCloudinary = (buffer, resourceType = 'image') => {
+  return new Promise((resolve, reject) => {
+    // Check if Cloudinary is configured
+    if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+      reject(new Error('Cloudinary not configured. Please set up your Cloudinary credentials.'));
+      return;
+    }
+    
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        resource_type: resourceType,
+        folder: 'products',
+      },
+      (error, result) => {
+        if (error) {
+          reject(error);
+        } else {
+          resolve(result);
+        }
+      }
+    );
+    
+    const bufferStream = new Readable();
+    bufferStream.push(buffer);
+    bufferStream.push(null);
+    bufferStream.pipe(stream);
+  });
+};
 
 // @desc    Get dashboard stats
 // @route   GET /api/admin/dashboard
@@ -85,6 +117,9 @@ const getAdminProducts = async (req, res) => {
 // @access  Private/Admin
 const createProduct = async (req, res) => {
   try {
+    console.log('Request body:', req.body);
+    console.log('Request files:', req.files);
+    
     const {
       name,
       description,
@@ -93,15 +128,29 @@ const createProduct = async (req, res) => {
       category,
       brand,
       countInStock,
-      images,
       featured,
       sku,
       weight,
       dimensions,
       tags,
       seoTitle,
-      seoDescription
+      seoDescription,
+      images,
+      videos
     } = req.body;
+
+    console.log('Extracted name:', name);
+    console.log('Extracted description:', description);
+    console.log('Extracted price:', price);
+    console.log('Extracted category:', category);
+
+    // Validate required fields
+    if (!name || !description || !price || !category || !countInStock) {
+      return res.status(400).json({ 
+        message: 'Missing required fields',
+        received: { name, description, price, category, countInStock }
+      });
+    }
 
     // Check if product with same name exists
     const existingProduct = await Product.findOne({ name });
@@ -109,22 +158,105 @@ const createProduct = async (req, res) => {
       return res.status(400).json({ message: 'Product with this name already exists' });
     }
 
+    // Process uploaded image files
+    const processedImages = [];
+    if (req.files && req.files.images) {
+      for (const file of req.files.images) {
+        try {
+          const result = await uploadToCloudinary(file.buffer, 'image');
+          processedImages.push({
+            url: result.secure_url,
+            public_id: result.public_id
+          });
+        } catch (uploadError) {
+          console.error('Image upload error:', uploadError);
+          return res.status(500).json({ message: 'Failed to upload image' });
+        }
+      }
+    }
+
+    // Process uploaded video files
+    const processedVideos = [];
+    if (req.files && req.files.videos) {
+      for (const file of req.files.videos) {
+        try {
+          const result = await uploadToCloudinary(file.buffer, 'video');
+          processedVideos.push({
+            url: result.secure_url,
+            public_id: result.public_id
+          });
+        } catch (uploadError) {
+          console.error('Video upload error:', uploadError);
+          return res.status(500).json({ message: 'Failed to upload video' });
+        }
+      }
+    }
+
+    // Process image URLs from form data
+    const imageUrls = [];
+    let index = 0;
+    while (req.body[`imageUrls[${index}][url]`]) {
+      if (req.body[`imageUrls[${index}][url]`] && req.body[`imageUrls[${index}][public_id]`]) {
+        imageUrls.push({
+          url: req.body[`imageUrls[${index}][url]`],
+          public_id: req.body[`imageUrls[${index}][public_id]`]
+        });
+      }
+      index++;
+    }
+
+    // Process video URLs from form data
+    const videoUrls = [];
+    index = 0;
+    while (req.body[`videoUrls[${index}][url]`]) {
+      if (req.body[`videoUrls[${index}][url]`] && req.body[`videoUrls[${index}][public_id]`]) {
+        videoUrls.push({
+          url: req.body[`videoUrls[${index}][url]`],
+          public_id: req.body[`videoUrls[${index}][public_id]`]
+        });
+      }
+      index++;
+    }
+
+    // Combine uploaded files and URLs
+    const allImages = [...processedImages, ...imageUrls];
+    const allVideos = [...processedVideos, ...videoUrls];
+
+    // Handle JSON-based images and videos (from simple form submission)
+    if (images && Array.isArray(images)) {
+      allImages.push(...images);
+    }
+    if (videos && Array.isArray(videos)) {
+      allVideos.push(...videos);
+    }
+
     const product = new Product({
       name,
       description,
-      price,
-      comparePrice,
+      price: typeof price === 'string' ? parseFloat(price) : price,
+      comparePrice: comparePrice ? (typeof comparePrice === 'string' ? parseFloat(comparePrice) : comparePrice) : undefined,
       category,
       brand,
-      countInStock,
-      images: images || [],
-      featured: featured || false,
+      countInStock: typeof countInStock === 'string' ? parseInt(countInStock) : countInStock,
+      images: allImages,
+      videos: allVideos,
+      featured: featured === 'true' || featured === true,
       sku,
-      weight,
+      weight: weight ? (typeof weight === 'string' ? parseFloat(weight) : weight) : undefined,
       dimensions,
-      tags: tags || [],
+      tags: tags ? (Array.isArray(tags) ? tags : [tags]) : [],
       seoTitle,
       seoDescription,
+      createdBy: req.user.id
+    });
+
+    console.log('Creating product with data:', {
+      name,
+      category,
+      price,
+      countInStock,
+      images: allImages.length,
+      videos: allVideos.length,
       createdBy: req.user.id
     });
 
@@ -132,6 +264,23 @@ const createProduct = async (req, res) => {
     res.status(201).json(savedProduct);
   } catch (error) {
     console.error('Create product error:', error);
+    
+    // Handle validation errors
+    if (error.name === 'ValidationError') {
+      const errorMessages = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({ 
+        message: 'Validation failed', 
+        errors: errorMessages 
+      });
+    }
+    
+    // Handle duplicate key error
+    if (error.code === 11000) {
+      return res.status(400).json({ 
+        message: 'Product with this name or SKU already exists' 
+      });
+    }
+    
     res.status(500).json({ message: 'Server error' });
   }
 };

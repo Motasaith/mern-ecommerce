@@ -196,8 +196,11 @@ const AdminProducts: React.FC = () => {
                       <div className="flex-shrink-0 h-16 w-16">
                         <img
                           className="h-16 w-16 rounded-lg object-cover"
-                          src={product.images[0]?.url || '/api/placeholder/64/64'}
+                          src={product.images[0]?.url || 'https://via.placeholder.com/64x64?text=No+Image'}
                           alt={product.name}
+                          onError={(e) => {
+                            e.currentTarget.src = 'https://via.placeholder.com/64x64?text=No+Image';
+                          }}
                         />
                       </div>
                       <div className="ml-4">

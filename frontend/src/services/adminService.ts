@@ -18,6 +18,11 @@ const adminService = {
     return response.data;
   },
 
+  createProductWithFiles: async (formData: FormData) => {
+    const response = await apiService.uploadFile('/admin/products', formData);
+    return response.data;
+  },
+
   updateProduct: async (id: string, productData: any) => {
     const response = await apiService.put(`/admin/products/${id}`, productData);
     return response.data;

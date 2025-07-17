@@ -81,6 +81,16 @@ const productSchema = new mongoose.Schema({
       required: true
     }
   }],
+  videos: [{
+    public_id: {
+      type: String,
+      required: true
+    },
+    url: {
+      type: String,
+      required: true
+    }
+  }],
   featured: {
     type: Boolean,
     default: false

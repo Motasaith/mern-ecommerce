@@ -7,7 +7,7 @@ const admin = require('../middleware/admin');
 const router = express.Router();
 
 // @route    GET api/products
-// @desc     Get all products
+// @desc     Get all products with filtering and search
 // @access   Public
 router.get('/', async (req, res) => {
   try {
@@ -15,13 +15,74 @@ router.get('/', async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
     const startIndex = (page - 1) * limit;
 
-    const products = await Product.find()
+    // Build filter object
+    const filter = { isActive: true };
+
+    // Category filter
+    if (req.query.category) {
+      filter.category = req.query.category;
+    }
+
+    // Price range filter
+    if (req.query.minPrice || req.query.maxPrice) {
+      filter.price = {};
+      if (req.query.minPrice) {
+        filter.price.$gte = parseFloat(req.query.minPrice);
+      }
+      if (req.query.maxPrice) {
+        filter.price.$lte = parseFloat(req.query.maxPrice);
+      }
+    }
+
+    // Rating filter
+    if (req.query.rating) {
+      filter.rating = { $gte: parseInt(req.query.rating) };
+    }
+
+    // Search filter
+    if (req.query.search) {
+      filter.$or = [
+        { name: { $regex: req.query.search, $options: 'i' } },
+        { description: { $regex: req.query.search, $options: 'i' } },
+        { brand: { $regex: req.query.search, $options: 'i' } },
+        { tags: { $in: [new RegExp(req.query.search, 'i')] } }
+      ];
+    }
+
+    // Sort options
+    let sortOption = { createdAt: -1 }; // Default: newest first
+    if (req.query.sort) {
+      switch (req.query.sort) {
+        case 'oldest':
+          sortOption = { createdAt: 1 };
+          break;
+        case 'price-low':
+          sortOption = { price: 1 };
+          break;
+        case 'price-high':
+          sortOption = { price: -1 };
+          break;
+        case 'rating':
+          sortOption = { rating: -1 };
+          break;
+        case 'name':
+          sortOption = { name: 1 };
+          break;
+        default:
+          sortOption = { createdAt: -1 };
+      }
+    }
+
+    console.log('Filter:', filter);
+    console.log('Sort:', sortOption);
+
+    const products = await Product.find(filter)
       .skip(startIndex)
       .limit(limit)
-      .populate('category', 'name')
-      .sort({ createdAt: -1 });
+      .sort(sortOption)
+      .populate('createdBy', 'name');
 
-    const total = await Product.countDocuments();
+    const total = await Product.countDocuments(filter);
 
     res.json({
       products,
