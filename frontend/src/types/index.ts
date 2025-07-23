@@ -8,6 +8,8 @@ export interface User {
     url: string;
   };
   phone?: string;
+  phoneVerified?: boolean;
+  phoneCountry?: string;
   addresses?: Address[];
   isActive: boolean;
   emailVerified: boolean;
@@ -56,6 +58,56 @@ export interface Product {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+  // Delivery and Service Information
+  deliveryInfo?: {
+    standardDelivery?: {
+      available: boolean;
+      days: string;
+      cost: number;
+    };
+    cashOnDelivery?: {
+      available: boolean;
+    };
+    freeDelivery?: {
+      available: boolean;
+      minOrder: number;
+    };
+  };
+  // Return and Warranty Information
+  returnPolicy?: {
+    available: boolean;
+    days: number;
+    description: string;
+  };
+  warranty?: {
+    available: boolean;
+    duration?: string;
+    description?: string;
+    type: 'Manufacturer' | 'Seller' | 'Brand';
+  };
+  // Product Specifications
+  specifications?: {
+    name: string;
+    value: string;
+  }[];
+  // What's in the box
+  whatsInBox?: {
+    item: string;
+    quantity: number;
+  }[];
+  // Questions and Answers
+  qnaQuestions?: {
+    user: string;
+    userName: string;
+    question: string;
+    answer?: {
+      text: string;
+      answeredBy: string;
+      answeredByName: string;
+      answeredAt: string;
+    };
+    createdAt: string;
+  }[];
 }
 
 export interface ProductImage {

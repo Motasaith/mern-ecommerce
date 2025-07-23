@@ -8,7 +8,7 @@ class AuthService {
   }
 
   // Register user
-  async register(userData: { name: string; email: string; password: string }) {
+  async register(userData: { name: string; email: string; password: string; phone: string }) {
     return apiService.post('/auth/register', userData);
   }
 
@@ -50,6 +50,21 @@ class AuthService {
   // Resend verification email
   async resendVerificationEmail() {
     return apiService.post('/auth/resend-verification');
+  }
+
+  // Verify phone number
+  async verifyPhone(verificationCode: string) {
+    return apiService.post('/auth/verify-phone', { verificationCode });
+  }
+
+  // Resend phone verification
+  async resendPhoneVerification() {
+    return apiService.post('/auth/resend-verification');
+  }
+
+  // Test phone validation
+  async testPhoneValidation(phone: string, countryCode?: string) {
+    return apiService.post('/auth/test-phone-validation', { phone, countryCode });
   }
 }
 

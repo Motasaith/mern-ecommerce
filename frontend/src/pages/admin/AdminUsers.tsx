@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAppDispatch } from '../../hooks/redux';
+import adminService from '../../services/adminService';
+import { toast } from 'react-hot-toast';
 
 interface User {
   _id: string;
@@ -16,61 +18,56 @@ const AdminUsers: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRole, setSelectedRole] = useState('all');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
 
   const roles = ['all', 'user', 'admin'];
 
+  // Debounce search term
   useEffect(() => {
-    // Simulate API call for users
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const mockUsers: User[] = [
-          {
-            _id: '1',
-            name: 'John Doe',
-            email: 'john@example.com',
-            role: 'user',
-            isActive: true,
-            createdAt: new Date().toISOString()
-          },
-          {
-            _id: '2',
-            name: 'Jane Smith',
-            email: 'jane@example.com',
-            role: 'admin',
-            isActive: true,
-            createdAt: new Date(Date.now() - 86400000).toISOString()
-          },
-          {
-            _id: '3',
-            name: 'Alice Johnson',
-            email: 'alice@example.com',
-            role: 'user',
-            isActive: false,
-            createdAt: new Date(Date.now() - 172800000).toISOString()
-          }
-        ];
-        setUsers(mockUsers);
+        setLoading(true);
+        const data = await adminService.getUsers({
+          search: debouncedSearchTerm,
+          role: selectedRole === 'all' ? '' : selectedRole
+        });
+        setUsers(data.users || []);
         setLoading(false);
       } catch (error) {
         console.error('Error fetching users:', error);
+        toast.error('Failed to load users');
         setLoading(false);
       }
     };
 
     fetchUsers();
-  }, []);
+  }, [debouncedSearchTerm, selectedRole]);
 
-  const filteredUsers = users.filter(user => {
-    const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          user.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesRole = selectedRole === 'all' || user.role === selectedRole;
-    return matchesSearch && matchesRole;
-  });
+  // Data is already filtered by the API based on searchTerm and selectedRole
+  const filteredUsers = users;
 
-  const handleToggleStatus = (id: string) => {
-    setUsers(users.map(u =>
-      u._id === id ? { ...u, isActive: !u.isActive } : u
-    ));
+  const handleToggleStatus = async (id: string) => {
+    const user = users.find(u => u._id === id);
+    if (!user) return;
+    
+    try {
+      await adminService.updateUserStatus(id, !user.isActive);
+      setUsers(users.map(u =>
+        u._id === id ? { ...u, isActive: !u.isActive } : u
+      ));
+      toast.success(`User ${!user.isActive ? 'activated' : 'deactivated'} successfully`);
+    } catch (error) {
+      console.error('Error updating user status:', error);
+      toast.error('Failed to update user status');
+    }
   };
 
   const formatDate = (dateString: string) => {

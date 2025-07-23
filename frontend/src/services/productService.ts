@@ -2,6 +2,14 @@ import { apiService } from './api';
 import { Product, FilterOptions } from '../types';
 
 class ProductService {
+  // Get all products (alias for backward compatibility)
+  async getAllProducts(filters?: any) {
+    if (filters) {
+      return this.getProducts({ filters });
+    }
+    return this.getProducts();
+  }
+
   // Get all products with pagination and filters
   async getProducts(params: { page?: number; limit?: number; filters?: FilterOptions } = {}) {
     const { page = 1, limit = 12, filters = {} } = params;
@@ -24,6 +32,11 @@ class ProductService {
   // Get single product
   async getProduct(id: string) {
     return apiService.get(`/products/${id}`);
+  }
+
+  // Get product by id (alias for backward compatibility)
+  async getProductById(id: string) {
+    return this.getProduct(id);
   }
 
   // Search products

@@ -21,6 +21,7 @@ import CartPage from './pages/CartPage';
 import CheckoutPage from './pages/CheckoutPage';
 import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
+import VerifyPhonePage from './pages/auth/VerifyPhonePage';
 import ProfilePage from './pages/ProfilePage';
 import OrdersPage from './pages/OrdersPage';
 import OrderDetailPage from './pages/OrderDetailPage';
@@ -66,6 +67,7 @@ function AppContent() {
             <Route path="cart" element={<CartPage />} />
             <Route path="login" element={<LoginPage />} />
             <Route path="register" element={<RegisterPage />} />
+            <Route path="verify-phone" element={<VerifyPhonePage />} />
             <Route path="about" element={<AboutPage />} />
             <Route path="contact" element={<ContactPage />} />
             <Route path="help" element={<HelpPage />} />

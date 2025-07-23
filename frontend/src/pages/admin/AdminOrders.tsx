@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAppDispatch, useAppSelector } from '../../hooks/redux';
+import adminService from '../../services/adminService';
+import { toast } from 'react-hot-toast';
 
 interface Order {
   _id: string;
@@ -29,118 +31,61 @@ const AdminOrders: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
 
   const statusOptions = ['all', 'Processing', 'Shipped', 'Delivered', 'Cancelled'];
 
+  // Debounce search term
   useEffect(() => {
-    // Simulate API call
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  useEffect(() => {
     const fetchOrders = async () => {
       try {
-        const mockOrders: Order[] = [
-          {
-            _id: '1',
-            user: {
-              _id: 'user1',
-              name: 'John Doe',
-              email: 'john@example.com'
-            },
-            orderItems: [
-              {
-                name: 'Wireless Headphones',
-                quantity: 1,
-                price: 99.99,
-                image: '/api/placeholder/64/64'
-              },
-              {
-                name: 'Phone Case',
-                quantity: 2,
-                price: 24.99,
-                image: '/api/placeholder/64/64'
-              }
-            ],
-            totalPrice: 149.97,
-            isPaid: true,
-            isDelivered: false,
-            orderStatus: 'Processing',
-            createdAt: new Date().toISOString(),
-            paidAt: new Date().toISOString()
-          },
-          {
-            _id: '2',
-            user: {
-              _id: 'user2',
-              name: 'Jane Smith',
-              email: 'jane@example.com'
-            },
-            orderItems: [
-              {
-                name: 'Smart Watch',
-                quantity: 1,
-                price: 199.99,
-                image: '/api/placeholder/64/64'
-              }
-            ],
-            totalPrice: 219.99,
-            isPaid: true,
-            isDelivered: true,
-            orderStatus: 'Delivered',
-            createdAt: new Date(Date.now() - 86400000).toISOString(),
-            paidAt: new Date(Date.now() - 86400000).toISOString(),
-            deliveredAt: new Date(Date.now() - 43200000).toISOString()
-          },
-          {
-            _id: '3',
-            user: {
-              _id: 'user3',
-              name: 'Bob Johnson',
-              email: 'bob@example.com'
-            },
-            orderItems: [
-              {
-                name: 'Laptop',
-                quantity: 1,
-                price: 999.99,
-                image: '/api/placeholder/64/64'
-              }
-            ],
-            totalPrice: 1049.99,
-            isPaid: false,
-            isDelivered: false,
-            orderStatus: 'Processing',
-            createdAt: new Date(Date.now() - 172800000).toISOString()
-          }
-        ];
-        setOrders(mockOrders);
+        setLoading(true);
+        const data = await adminService.getOrders({
+          status: selectedStatus === 'all' ? '' : selectedStatus,
+          search: debouncedSearchTerm
+        });
+        setOrders(data.orders || []);
         setLoading(false);
       } catch (error) {
         console.error('Error fetching orders:', error);
+        toast.error('Failed to load orders');
         setLoading(false);
       }
     };
 
     fetchOrders();
-  }, []);
+  }, [selectedStatus, debouncedSearchTerm]);
 
-  const filteredOrders = orders.filter(order => {
-    const matchesStatus = selectedStatus === 'all' || order.orderStatus === selectedStatus;
-    const matchesSearch = order.user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         order.user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         order._id.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesStatus && matchesSearch;
-  });
+  // Data is already filtered by the API based on selectedStatus and searchTerm
+  const filteredOrders = orders;
 
-  const handleStatusChange = (orderId: string, newStatus: string) => {
-    setOrders(orders.map(order => 
-      order._id === orderId 
-        ? { 
-            ...order, 
-            orderStatus: newStatus,
-            isDelivered: newStatus === 'Delivered' ? true : order.isDelivered,
-            deliveredAt: newStatus === 'Delivered' ? new Date().toISOString() : order.deliveredAt
-          }
-        : order
-    ));
+  const handleStatusChange = async (orderId: string, newStatus: string) => {
+    try {
+      await adminService.updateOrderStatus(orderId, newStatus);
+      setOrders(orders.map(order => 
+        order._id === orderId 
+          ? { 
+              ...order, 
+              orderStatus: newStatus,
+              isDelivered: newStatus === 'Delivered' ? true : order.isDelivered,
+              deliveredAt: newStatus === 'Delivered' ? new Date().toISOString() : order.deliveredAt
+            }
+          : order
+      ));
+      toast.success('Order status updated successfully');
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      toast.error('Failed to update order status');
+    }
   };
 
   const formatDate = (dateString: string) => {

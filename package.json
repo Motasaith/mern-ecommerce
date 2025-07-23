@@ -11,7 +11,13 @@
     "install-server": "cd backend && npm install",
     "install-client": "cd frontend && npm install",
     "install-all": "npm run install-server && npm run install-client",
-    "heroku-postbuild": "npm run install-all && npm run build"
+    "heroku-postbuild": "npm run install-all && npm run build",
+    "test": "node scripts/test-runner.js",
+    "test:backend": "cd backend && npm test",
+    "test:frontend": "cd frontend && npm test -- --watchAll=false",
+    "test:e2e": "node scripts/test-runner.js --e2e",
+    "test:all": "node scripts/test-runner.js --e2e",
+    "testsprite": "node scripts/test-runner.js"
   },
   "keywords": [
     "mern",

@@ -38,6 +38,19 @@ const userSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+  phoneVerified: {
+    type: Boolean,
+    default: false
+  },
+  phoneVerificationCode: String,
+  phoneVerificationExpires: Date,
+  phoneVerificationAttempts: {
+    type: Number,
+    default: 0
+  },
+  phoneVerificationLastAttempt: Date,
+  phoneCountry: String,
+  phoneCarrier: String,
   addresses: [{
     name: String,
     street: String,

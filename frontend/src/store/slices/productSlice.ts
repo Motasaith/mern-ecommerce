@@ -49,6 +49,18 @@ export const searchProducts = createAsyncThunk(
   }
 );
 
+export const fetchProductsByCategory = createAsyncThunk(
+  'products/fetchProductsByCategory',
+  async (category: string, { rejectWithValue }) => {
+    try {
+      const response = await productService.getProducts({ filters: { category } });
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch products by category');
+    }
+  }
+);
+
 export const createProduct = createAsyncThunk(
   'products/createProduct',
   async (productData: Partial<Product>, { rejectWithValue }) => {
@@ -143,6 +155,23 @@ const productSlice = createSlice({
         state.error = null;
       })
       .addCase(searchProducts.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+      // Fetch products by category
+      .addCase(fetchProductsByCategory.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchProductsByCategory.fulfilled, (state, action) => {
+        state.loading = false;
+        state.products = action.payload.products;
+        state.totalPages = action.payload.totalPages;
+        state.currentPage = action.payload.currentPage;
+        state.totalProducts = action.payload.totalProducts;
+        state.error = null;
+      })
+      .addCase(fetchProductsByCategory.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       })

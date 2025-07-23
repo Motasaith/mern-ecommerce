@@ -140,7 +140,64 @@ const productSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
-  }
+  },
+  // Delivery and Service Information
+  deliveryInfo: {
+    standardDelivery: {
+      available: { type: Boolean, default: true },
+      days: { type: String, default: '5-7 days' },
+      cost: { type: Number, default: 0 }
+    },
+    cashOnDelivery: {
+      available: { type: Boolean, default: true }
+    },
+    freeDelivery: {
+      available: { type: Boolean, default: false },
+      minOrder: { type: Number, default: 0 }
+    }
+  },
+  // Return and Warranty Information
+  returnPolicy: {
+    available: { type: Boolean, default: true },
+    days: { type: Number, default: 14 },
+    description: { type: String, default: '14 days easy return' }
+  },
+  warranty: {
+    available: { type: Boolean, default: false },
+    duration: { type: String },
+    description: { type: String },
+    type: { type: String, enum: ['Manufacturer', 'Seller', 'Brand'], default: 'Seller' }
+  },
+  // Product Specifications
+  specifications: [{
+    name: { type: String, required: true },
+    value: { type: String, required: true }
+  }],
+  // What's in the box
+  whatsInBox: [{
+    item: { type: String, required: true },
+    quantity: { type: Number, default: 1 }
+  }],
+  // Questions and Answers
+  qnaQuestions: [{
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
+    },
+    userName: { type: String, required: true },
+    question: { type: String, required: true },
+    answer: {
+      text: { type: String },
+      answeredBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+      },
+      answeredByName: { type: String },
+      answeredAt: { type: Date }
+    },
+    createdAt: { type: Date, default: Date.now }
+  }]
 }, {
   timestamps: true
 });

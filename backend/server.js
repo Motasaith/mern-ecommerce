@@ -10,6 +10,12 @@ const morgan = require('morgan');
 const path = require('path');
 require('dotenv').config();
 
+// Default to development if NODE_ENV is not set
+if (!process.env.NODE_ENV) {
+  process.env.NODE_ENV = 'development';
+  console.log('NODE_ENV not set, defaulting to development');
+}
+
 const app = express();
 
 // Security Middleware
@@ -90,6 +96,9 @@ mongoose.connect(process.env.MONGODB_URI, {
 .then(() => console.log('MongoDB connected'))
 .catch(err => console.error('MongoDB connection error:', err));
 
+// SMS service will use RapidAPI
+console.log('SMS service configured to use RapidAPI');
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.status(200).json({ 
@@ -138,6 +147,8 @@ const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  console.log(`NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
+  console.log(`Environment loaded from .env: ${process.env.NODE_ENV === 'development' ? 'YES' : 'NO'}`);
 });
 
 module.exports = app;

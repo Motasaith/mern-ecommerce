@@ -26,7 +26,7 @@ export const loginUser = createAsyncThunk(
 
 export const registerUser = createAsyncThunk(
   'auth/register',
-  async (userData: { name: string; email: string; password: string }, { rejectWithValue }) => {
+  async (userData: { name: string; email: string; password: string; phone: string }, { rejectWithValue }) => {
     try {
       const response = await authService.register(userData);
       return response.data;
@@ -60,6 +60,36 @@ export const updateProfile = createAsyncThunk(
       return response.data;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || 'Profile update failed');
+    }
+  }
+);
+
+export const verifyPhone = createAsyncThunk(
+  'auth/verifyPhone',
+  async (verificationCode: string, { rejectWithValue }) => {
+    try {
+      const response = await authService.verifyPhone(verificationCode);
+      return response.data;
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.errors?.[0]?.msg || 
+                          error.response?.data?.message || 
+                          'Phone verification failed';
+      return rejectWithValue(errorMessage);
+    }
+  }
+);
+
+export const resendPhoneVerification = createAsyncThunk(
+  'auth/resendPhoneVerification',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await authService.resendPhoneVerification();
+      return response.data;
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.errors?.[0]?.msg || 
+                          error.response?.data?.message || 
+                          'Failed to resend verification code';
+      return rejectWithValue(errorMessage);
     }
   }
 );
@@ -151,6 +181,35 @@ const authSlice = createSlice({
         state.error = null;
       })
       .addCase(updateProfile.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+      // Verify phone
+      .addCase(verifyPhone.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(verifyPhone.fulfilled, (state, action) => {
+        state.loading = false;
+        if (state.user) {
+          state.user.phoneVerified = true;
+        }
+        state.error = null;
+      })
+      .addCase(verifyPhone.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+      // Resend phone verification
+      .addCase(resendPhoneVerification.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(resendPhoneVerification.fulfilled, (state) => {
+        state.loading = false;
+        state.error = null;
+      })
+      .addCase(resendPhoneVerification.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       });
