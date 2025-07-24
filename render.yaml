@@ -15,7 +15,21 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: CORS_ORIGIN
-        value: https://your-frontend-url.onrender.com
+        value: https://mern-ecommerce-frontend.onrender.com
+      - key: FRONTEND_URL
+        value: https://mern-ecommerce-frontend.onrender.com
+      - key: BREVO_SMTP_HOST
+        value: smtp-relay.brevo.com
+      - key: BREVO_SMTP_PORT
+        value: 587
+      - key: BREVO_SMTP_LOGIN
+        sync: false
+      - key: BREVO_SMTP_PASSWORD
+        sync: false
+      - key: FROM_EMAIL
+        value: saithmota@gmail.com
+      - key: FROM_NAME
+        value: ShopHub E-commerce
   
   - type: web
     name: mern-ecommerce-frontend
@@ -23,6 +37,9 @@ services:
     plan: free
     buildCommand: cd frontend && npm install && npm run build
     staticPublishPath: ./frontend/build
+    envVars:
+      - key: REACT_APP_API_URL
+        value: https://mern-ecommerce-backend.onrender.com
     routes:
       - type: rewrite
         source: /*

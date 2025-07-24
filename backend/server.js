@@ -50,6 +50,7 @@ const corsOptions = {
     const allowedOrigins = [
       'http://localhost:3000',
       'http://localhost:3001',
+      'https://mern-ecommerce-frontend.onrender.com',
       process.env.CORS_ORIGIN,
       process.env.CORS_ORIGIN?.replace(/\/$/, ''), // Remove trailing slash
       process.env.CORS_ORIGIN?.replace(/\/$/, '') + '/', // Add trailing slash
