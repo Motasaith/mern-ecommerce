@@ -352,15 +352,25 @@ const getAdminUsers = async (req, res) => {
     }
 
     const users = await User.find(query)
-      .select('-password')
+      .select('-password -emailVerificationToken -passwordResetToken -newEmailVerificationToken')
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit);
 
+    // Add verification status for each user
+    const usersWithStatus = users.map(user => ({
+      ...user.toObject(),
+      verificationStatus: {
+        emailVerified: user.emailVerified,
+        phoneVerified: user.phoneVerified,
+        isFullyVerified: user.emailVerified && user.phoneVerified
+      }
+    }));
+
     const total = await User.countDocuments(query);
 
     res.json({
-      users,
+      users: usersWithStatus,
       currentPage: page,
       totalPages: Math.ceil(total / limit),
       totalUsers: total
@@ -459,6 +469,42 @@ const updateOrderStatus = async (req, res) => {
   }
 };
 
+// @desc    Delete user
+// @route   DELETE /api/admin/users/:id
+// @access  Private/Admin
+const deleteUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    // Prevent admin from deleting themselves
+    if (user._id.toString() === req.user.id) {
+      return res.status(400).json({ message: 'You cannot delete your own account' });
+    }
+    
+    // Log the deletion for security audit
+    console.log(`Admin ${req.user.id} is deleting user ${user._id} (${user.email})`);
+    
+    await User.findByIdAndDelete(req.params.id);
+    
+    res.json({ 
+      message: 'User deleted successfully',
+      deletedUser: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        deletedAt: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error('Delete user error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 module.exports = {
   getDashboardStats,
   getAdminProducts,
@@ -467,6 +513,7 @@ module.exports = {
   deleteProduct,
   getAdminUsers,
   updateUserStatus,
+  deleteUser,
   getAdminOrders,
   updateOrderStatus
 };

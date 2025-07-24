@@ -1,0 +1,599 @@
+const nodemailer = require('nodemailer');
+const crypto = require('crypto');
+
+class EmailService {
+  constructor() {
+    // Initialize SMTP transporter with Brevo
+    this.transporter = nodemailer.createTransport({
+      host: process.env.BREVO_SMTP_HOST,
+      port: parseInt(process.env.BREVO_SMTP_PORT),
+      secure: false, // Use TLS
+      auth: {
+        user: process.env.BREVO_SMTP_LOGIN,
+        pass: process.env.BREVO_SMTP_PASSWORD,
+      },
+    });
+
+    // Default sender configuration
+    this.defaultSender = {
+      email: process.env.FROM_EMAIL || 'saithmota@gmail.com',
+      name: process.env.FROM_NAME || 'ShopHub E-commerce'
+    };
+
+    // Verify connection on startup
+    this.verifyConnection();
+  }
+
+  async verifyConnection() {
+    try {
+      await this.transporter.verify();
+      console.log('✅ Email service (Brevo) connected successfully');
+    } catch (error) {
+      console.error('❌ Email service connection failed:', error.message);
+    }
+  }
+
+  /**
+   * Send basic email
+   */
+  async sendEmail({ to, subject, html, text, from = this.defaultSender, attachments = [] }) {
+    const mailOptions = {
+      from: `${from.name} <${from.email}>`,
+      to,
+      subject,
+      html,
+      text,
+      attachments,
+    };
+
+    try {
+      const info = await this.transporter.sendMail(mailOptions);
+      console.log('✅ Email sent successfully:', info.messageId);
+      return {
+        success: true,
+        messageId: info.messageId,
+        info: info
+      };
+    } catch (error) {
+      console.error('❌ Email sending failed:', error.message);
+      return {
+        success: false,
+        error: error.message,
+        details: error
+      };
+    }
+  }
+
+  /**
+   * Send welcome email with email verification
+   */
+  async sendWelcomeEmail(user, verificationToken) {
+    const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
+    
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Welcome to ShopHub!</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+        <div style="max-width: 600px; margin: 0 auto; background-color: white;">
+          <!-- Header -->
+          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 20px; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 28px; font-weight: bold;">
+              🎉 Welcome to ShopHub!
+            </h1>
+          </div>
+          
+          <!-- Content -->
+          <div style="padding: 40px 30px;">
+            <h2 style="color: #333; margin-top: 0; font-size: 24px;">
+              Hi ${user.name}! 👋
+            </h2>
+            
+            <p style="color: #666; line-height: 1.6; font-size: 16px; margin-bottom: 20px;">
+              Welcome to <strong>ShopHub</strong> - your ultimate e-commerce destination! We're thrilled to have you join our community of smart shoppers.
+            </p>
+            
+            <p style="color: #666; line-height: 1.6; font-size: 16px; margin-bottom: 30px;">
+              To get started and secure your account, please verify your email address by clicking the button below:
+            </p>
+            
+            <!-- CTA Button -->
+            <div style="text-align: center; margin: 40px 0;">
+              <a href="${verificationUrl}" 
+                 style="background: #667eea; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: bold; font-size: 16px; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);">
+                ✅ Verify Email Address
+              </a>
+            </div>
+            
+            <!-- Benefits -->
+            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 30px 0;">
+              <h3 style="color: #333; margin-top: 0; font-size: 18px;">🚀 What's waiting for you:</h3>
+              <ul style="color: #666; line-height: 1.8; padding-left: 20px;">
+                <li>🛍️ Access to exclusive deals and discounts</li>
+                <li>📦 Fast and secure checkout process</li>
+                <li>🔔 Order tracking and notifications</li>
+                <li>⭐ Personalized product recommendations</li>
+                <li>🎁 Special member-only offers</li>
+              </ul>
+            </div>
+            
+            <!-- Alternative Link -->
+            <div style="background: #fff3cd; padding: 15px; border-radius: 5px; border-left: 4px solid #ffc107; margin: 20px 0;">
+              <p style="margin: 0; color: #856404; font-size: 14px;">
+                <strong>Can't click the button?</strong> Copy and paste this link into your browser:<br>
+                <a href="${verificationUrl}" style="color: #667eea; word-break: break-all;">${verificationUrl}</a>
+              </p>
+            </div>
+            
+            <p style="color: #999; font-size: 14px; margin-top: 30px;">
+              This verification link will expire in 24 hours for security reasons.
+            </p>
+          </div>
+          
+          <!-- Footer -->
+          <div style="background: #333; color: white; padding: 30px; text-align: center;">
+            <p style="margin: 0; font-size: 16px; font-weight: bold;">ShopHub E-commerce</p>
+            <p style="margin: 10px 0 0 0; font-size: 14px; opacity: 0.8;">
+              Your trusted online shopping destination
+            </p>
+            <p style="margin: 15px 0 0 0; font-size: 12px; opacity: 0.6;">
+              © 2024 ShopHub. All rights reserved.
+            </p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const text = `
+      Welcome to ShopHub!
+      
+      Hi ${user.name}!
+      
+      Welcome to ShopHub - your ultimate e-commerce destination! We're thrilled to have you join our community.
+      
+      To get started and secure your account, please verify your email address by visiting:
+      ${verificationUrl}
+      
+      What's waiting for you:
+      • Access to exclusive deals and discounts
+      • Fast and secure checkout process  
+      • Order tracking and notifications
+      • Personalized product recommendations
+      • Special member-only offers
+      
+      This verification link will expire in 24 hours for security reasons.
+      
+      Happy shopping!
+      The ShopHub Team
+      
+      © 2024 ShopHub. All rights reserved.
+    `;
+
+    return await this.sendEmail({
+      to: user.email,
+      subject: '🎉 Welcome to ShopHub! Please verify your email',
+      html,
+      text
+    });
+  }
+
+  /**
+   * Send email verification
+   */
+async sendEmailVerification(user, verificationToken, isNewEmail = false) {
+    const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
+    
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Verify Your Email - ShopHub</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+        <div style="max-width: 600px; margin: 0 auto; background-color: white;">
+          <!-- Header -->
+          <div style="background: #667eea; padding: 30px 20px; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 24px;">🔐 Verify Your Email</h1>
+          </div>
+          
+          <!-- Content -->
+          <div style="padding: 40px 30px;">
+            <h2 style="color: #333; margin-top: 0;">Hi ${user.name}!</h2>
+            
+            <p style="color: #666; line-height: 1.6; font-size: 16px;">
+Please verify your email address to secure your ShopHub account. This applies to both registration email and if you're updating to a new email address.
+            </p>
+            
+            <!-- CTA Button -->
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${verificationUrl}" 
+                 style="background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+                ✅ Verify Email Address
+              </a>
+            </div>
+            
+            <p style="color: #999; font-size: 14px; text-align: center;">
+              Link expires in 24 hours. If you didn't request this, please ignore this email.
+            </p>
+          </div>
+          
+          <!-- Footer -->
+          <div style="background: #f8f9fa; padding: 20px; text-align: center; color: #666; font-size: 12px;">
+            © 2024 ShopHub. All rights reserved.
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const text = `
+      Verify Your Email - ShopHub
+      
+      Hi ${user.name}!
+      
+      Please verify your email address to secure your ShopHub account: ${verificationUrl}
+      
+      Link expires in 24 hours. If you didn't request this, please ignore this email.
+      
+      © 2024 ShopHub. All rights reserved.
+    `;
+
+    const targetEmail = isNewEmail ? user.newEmail : user.email;
+    const subjectText = isNewEmail ? '🔐 Verify your new email address - ShopHub' : '🔐 Verify your email address - ShopHub';
+    
+    return await this.sendEmail({
+      to: targetEmail,
+      subject: subjectText,
+      html,
+      text
+    });
+  }
+
+  /**
+   * Send password reset email
+   */
+  async sendPasswordResetEmail(user, resetToken) {
+    const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+    
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Reset Your Password - ShopHub</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+        <div style="max-width: 600px; margin: 0 auto; background-color: white;">
+          <!-- Header -->
+          <div style="background: #dc3545; padding: 30px 20px; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 24px;">🔐 Reset Your Password</h1>
+          </div>
+          
+          <!-- Content -->
+          <div style="padding: 40px 30px;">
+            <h2 style="color: #333; margin-top: 0;">Hi ${user.name}!</h2>
+            
+            <p style="color: #666; line-height: 1.6; font-size: 16px;">
+              You requested a password reset for your ShopHub account. Click the button below to create a new password:
+            </p>
+            
+            <!-- CTA Button -->
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${resetUrl}" 
+                 style="background: #dc3545; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+                🔐 Reset Password
+              </a>
+            </div>
+            
+            <div style="background: #fff3cd; padding: 15px; border-radius: 5px; border-left: 4px solid #ffc107;">
+              <p style="margin: 0; color: #856404; font-size: 14px;">
+                <strong>Security Notice:</strong> This link expires in 1 hour. If you didn't request this reset, please ignore this email and your password will remain unchanged.
+              </p>
+            </div>
+          </div>
+          
+          <!-- Footer -->
+          <div style="background: #f8f9fa; padding: 20px; text-align: center; color: #666; font-size: 12px;">
+            © 2024 ShopHub. All rights reserved.
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const text = `
+      Reset Your Password - ShopHub
+      
+      Hi ${user.name}!
+      
+      You requested a password reset. Click here to reset: ${resetUrl}
+      
+      This link expires in 1 hour. If you didn't request this, please ignore this email.
+      
+      © 2024 ShopHub. All rights reserved.
+    `;
+
+    return await this.sendEmail({
+      to: user.email,
+      subject: '🔐 Reset your password - ShopHub',
+      html,
+      text
+    });
+  }
+
+  /**
+   * Send order confirmation email
+   */
+  async sendOrderConfirmation(user, order) {
+    const orderItemsHtml = order.items.map(item => `
+      <tr style="border-bottom: 1px solid #eee;">
+        <td style="padding: 12px 8px; color: #333;">${item.product.name}</td>
+        <td style="padding: 12px 8px; text-align: center; color: #666;">${item.quantity}</td>
+        <td style="padding: 12px 8px; text-align: right; color: #333; font-weight: bold;">$${item.price.toFixed(2)}</td>
+      </tr>
+    `).join('');
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Order Confirmation - ShopHub</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+        <div style="max-width: 600px; margin: 0 auto; background-color: white;">
+          <!-- Header -->
+          <div style="background: #28a745; padding: 30px 20px; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 28px;">🎉 Order Confirmed!</h1>
+          </div>
+          
+          <!-- Content -->
+          <div style="padding: 40px 30px;">
+            <h2 style="color: #333; margin-top: 0;">Hi ${user.name}!</h2>
+            
+            <p style="color: #666; line-height: 1.6; font-size: 16px;">
+              Thank you for your order! Your order <strong>#${order._id}</strong> has been confirmed and is being processed.
+            </p>
+            
+            <!-- Order Details -->
+            <div style="background: #f8f9fa; padding: 25px; margin: 25px 0; border-radius: 8px; border: 1px solid #e9ecef;">
+              <h3 style="margin-top: 0; color: #333; font-size: 20px;">📦 Order Details</h3>
+              
+              <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+                <thead>
+                  <tr style="background: #e9ecef;">
+                    <th style="padding: 12px 8px; text-align: left; color: #495057; font-weight: bold;">Product</th>
+                    <th style="padding: 12px 8px; text-align: center; color: #495057; font-weight: bold;">Qty</th>
+                    <th style="padding: 12px 8px; text-align: right; color: #495057; font-weight: bold;">Price</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${orderItemsHtml}
+                </tbody>
+                <tfoot>
+                  <tr style="background: #e9ecef; font-weight: bold; border-top: 2px solid #dee2e6;">
+                    <td colspan="2" style="padding: 15px 8px; color: #495057; font-size: 16px;">Total</td>
+                    <td style="padding: 15px 8px; text-align: right; color: #28a745; font-size: 18px; font-weight: bold;">$${order.totalAmount.toFixed(2)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+            
+            <!-- Next Steps -->
+            <div style="background: #e7f3ff; padding: 20px; border-radius: 8px; border-left: 4px solid #2196f3;">
+              <h4 style="margin-top: 0; color: #1976d2;">📬 What's Next?</h4>
+              <ul style="margin: 10px 0; padding-left: 20px; color: #666; line-height: 1.6;">
+                <li>We'll send you another email when your order ships</li>
+                <li>You'll receive tracking information to monitor delivery</li>
+                <li>Estimated delivery: 3-7 business days</li>
+              </ul>
+            </div>
+            
+            <p style="color: #666; line-height: 1.6; font-size: 16px; margin-top: 30px;">
+              Questions about your order? Feel free to contact our support team - we're here to help!
+            </p>
+          </div>
+          
+          <!-- Footer -->
+          <div style="background: #333; color: white; padding: 30px; text-align: center;">
+            <p style="margin: 0; font-size: 16px; font-weight: bold;">ShopHub E-commerce</p>
+            <p style="margin: 10px 0 0 0; font-size: 14px; opacity: 0.8;">
+              Thank you for shopping with us!
+            </p>
+            <p style="margin: 15px 0 0 0; font-size: 12px; opacity: 0.6;">
+              © 2024 ShopHub. All rights reserved.
+            </p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const text = `
+      Order Confirmed! - ShopHub
+      
+      Hi ${user.name}!
+      
+      Thank you for your order! Your order #${order._id} has been confirmed and is being processed.
+      
+      Order Details:
+      ${order.items.map(item => `- ${item.product.name} x${item.quantity} - $${item.price.toFixed(2)}`).join('\n')}
+      
+      Total: $${order.totalAmount.toFixed(2)}
+      
+      What's Next?
+      • We'll send you another email when your order ships
+      • You'll receive tracking information to monitor delivery  
+      • Estimated delivery: 3-7 business days
+      
+      Thank you for shopping with ShopHub!
+      
+      © 2024 ShopHub. All rights reserved.
+    `;
+
+    return await this.sendEmail({
+      to: user.email,
+      subject: `🎉 Order Confirmation #${order._id} - ShopHub`,
+      html,
+      text
+    });
+  }
+
+  /**
+   * Send order shipped notification
+   */
+  async sendOrderShipped(user, order, trackingInfo) {
+    const trackingSection = trackingInfo ? `
+      <div style="background: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 8px; border: 1px solid #e9ecef;">
+        <h3 style="margin-top: 0; color: #333;">📦 Tracking Information</h3>
+        <p style="margin: 8px 0;"><strong>Tracking Number:</strong> ${trackingInfo.trackingNumber}</p>
+        <p style="margin: 8px 0;"><strong>Carrier:</strong> ${trackingInfo.carrier}</p>
+        ${trackingInfo.trackingUrl ? `
+          <div style="text-align: center; margin: 20px 0;">
+            <a href="${trackingInfo.trackingUrl}" 
+               style="background: #17a2b8; color: white; padding: 12px 25px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+              📍 Track Your Package
+            </a>
+          </div>
+        ` : ''}
+      </div>
+    ` : '';
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Your Order Has Shipped - ShopHub</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+        <div style="max-width: 600px; margin: 0 auto; background-color: white;">
+          <!-- Header -->
+          <div style="background: #17a2b8; padding: 30px 20px; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 28px;">🚚 Your Order Has Shipped!</h1>
+          </div>
+          
+          <!-- Content -->
+          <div style="padding: 40px 30px;">
+            <h2 style="color: #333; margin-top: 0;">Hi ${user.name}!</h2>
+            
+            <p style="color: #666; line-height: 1.6; font-size: 16px;">
+              Great news! Your order <strong>#${order._id}</strong> has been shipped and is on its way to you! 📦✨
+            </p>
+            
+            ${trackingSection}
+            
+            <div style="background: #d4edda; padding: 20px; border-radius: 8px; border-left: 4px solid #28a745; margin: 25px 0;">
+              <h4 style="margin-top: 0; color: #155724;">🎯 Delivery Information</h4>
+              <p style="margin: 8px 0; color: #155724;">
+                Your package should arrive within the estimated delivery window. We'll notify you when it's delivered!
+              </p>
+            </div>
+            
+            <p style="color: #666; line-height: 1.6; font-size: 16px;">
+              Thank you for choosing ShopHub for your shopping needs. We hope you love your purchase!
+            </p>
+          </div>
+          
+          <!-- Footer -->
+          <div style="background: #333; color: white; padding: 30px; text-align: center;">
+            <p style="margin: 0; font-size: 16px; font-weight: bold;">ShopHub E-commerce</p>
+            <p style="margin: 10px 0 0 0; font-size: 14px; opacity: 0.8;">
+              Your package is on the way!
+            </p>
+            <p style="margin: 15px 0 0 0; font-size: 12px; opacity: 0.6;">
+              © 2024 ShopHub. All rights reserved.
+            </p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const text = `
+      Your Order Has Shipped! - ShopHub
+      
+      Hi ${user.name}!
+      
+      Great news! Your order #${order._id} has been shipped and is on its way to you!
+      
+      ${trackingInfo ? `
+      Tracking Information:
+      Tracking Number: ${trackingInfo.trackingNumber}
+      Carrier: ${trackingInfo.carrier}
+      ${trackingInfo.trackingUrl ? `Track here: ${trackingInfo.trackingUrl}` : ''}
+      ` : ''}
+      
+      Your package should arrive within the estimated delivery window. We'll notify you when it's delivered!
+      
+      Thank you for choosing ShopHub!
+      
+      © 2024 ShopHub. All rights reserved.
+    `;
+
+    return await this.sendEmail({
+      to: user.email, 
+      subject: `🚚 Your order #${order._id} has shipped! - ShopHub`,
+      html,
+      text
+    });
+  }
+
+  /**
+   * Send marketing/promotional email
+   */
+  async sendMarketingEmail({ to, subject, content, campaignName = 'General' }) {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>${subject}</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+        <div style="max-width: 600px; margin: 0 auto; background-color: white;">
+          <!-- Header -->
+          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px 20px; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 24px;">ShopHub</h1>
+          </div>
+          
+          <!-- Content -->
+          <div style="padding: 40px 30px;">
+            ${content}
+          </div>
+          
+          <!-- Footer -->
+          <div style="background: #f8f9fa; padding: 20px; text-align: center; color: #666; font-size: 12px;">
+            <p style="margin: 0;">
+              You received this email because you're subscribed to ShopHub updates.
+            </p>
+            <p style="margin: 10px 0 0 0;">
+              © 2024 ShopHub. All rights reserved.
+            </p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    return await this.sendEmail({
+      to,
+      subject: `${subject} - ShopHub`,
+      html,
+      text: content.replace(/<[^>]*>/g, '') // Strip HTML for text version
+    });
+  }
+}
+
+module.exports = new EmailService();

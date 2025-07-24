@@ -1,5 +1,4 @@
 import { apiService } from './api';
-import { User } from '../types';
 
 class AuthService {
   // Login user
@@ -39,17 +38,27 @@ class AuthService {
 
   // Change password
   async changePassword(oldPassword: string, newPassword: string) {
-    return apiService.put('/auth/change-password', { oldPassword, newPassword });
+    return apiService.post('/users/change-password', { currentPassword: oldPassword, newPassword });
+  }
+
+  // Update email
+  async updateEmail(newEmail: string) {
+    return apiService.put('/users/email', { newEmail });
   }
 
   // Verify email
   async verifyEmail(token: string) {
-    return apiService.post(`/auth/verify-email/${token}`);
+    return apiService.post('/auth/verify-email', { token });
   }
 
   // Resend verification email
   async resendVerificationEmail() {
-    return apiService.post('/auth/resend-verification');
+    return apiService.post('/users/send-email-verification');
+  }
+
+  // Send phone verification
+  async sendPhoneVerification() {
+    return apiService.post('/auth/send-phone-verification');
   }
 
   // Verify phone number

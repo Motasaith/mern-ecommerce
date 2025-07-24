@@ -1,16 +1,41 @@
 import React, { useState } from 'react';
 import { useAppSelector, useAppDispatch } from '../hooks/redux';
-import { verifyPhone, resendPhoneVerification } from '../store/slices/authSlice';
+import { useNavigate } from 'react-router-dom';
+import { 
+  verifyPhone, 
+  resendPhoneVerification, 
+  resendEmailVerification, 
+  changePassword,
+  forgotPassword,
+  updateEmail
+} from '../store/slices/authSlice';
+import authService from '../services/authService';
 import PhoneInput from '../components/common/PhoneInput';
 import toast from 'react-hot-toast';
 
 const ProfilePage: React.FC = () => {
   const dispatch = useAppDispatch();
+  const navigate = useNavigate();
   const { user, loading } = useAppSelector((state) => state.auth);
   const [verificationCode, setVerificationCode] = useState('');
   const [showVerificationForm, setShowVerificationForm] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState(user?.phone || '');
   const [editingPhone, setEditingPhone] = useState(false);
+  
+  // Email editing states
+  const [editingEmail, setEditingEmail] = useState(false);
+  const [emailAddress, setEmailAddress] = useState(user?.email || '');
+  
+  // Password change states
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [passwordData, setPasswordData] = useState({
+    oldPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  
+  // Email verification states
+  const [resendingEmail, setResendingEmail] = useState(false);
 
   const handlePhoneChange = (phoneValue: string, countryCode?: string) => {
     setPhoneNumber(phoneValue);
@@ -23,15 +48,16 @@ const ProfilePage: React.FC = () => {
     }
     
     try {
-      const result = await dispatch(resendPhoneVerification()).unwrap();
+      const result = await authService.sendPhoneVerification();
       setShowVerificationForm(true);
-      if (result.smsSuccess) {
+      if (result.data.smsSuccess) {
         toast.success('Verification code sent to your phone!');
       } else {
         toast.success('Verification code generated. Please check your phone.');
       }
     } catch (error: any) {
-      toast.error(error.message || 'Failed to send verification code');
+      const errorMessage = error.response?.data?.errors?.[0]?.msg || error.response?.data?.message || 'Failed to send verification code';
+      toast.error(errorMessage);
     }
   };
 
@@ -71,6 +97,81 @@ const ProfilePage: React.FC = () => {
     }
   };
 
+  const handleResendEmail = async () => {
+    setResendingEmail(true);
+    try {
+      await dispatch(resendEmailVerification()).unwrap();
+      toast.success('Verification email sent! Please check your inbox.');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to send verification email');
+    } finally {
+      setResendingEmail(false);
+    }
+  };
+
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      toast.error('New passwords do not match');
+      return;
+    }
+
+    if (passwordData.newPassword.length < 8) {
+      toast.error('Password must be at least 8 characters long');
+      return;
+    }
+
+    // Strong password validation
+    const strongPasswordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/;
+    if (!strongPasswordRegex.test(passwordData.newPassword)) {
+      toast.error('Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character');
+      return;
+    }
+
+    try {
+      await dispatch(changePassword({
+        oldPassword: passwordData.oldPassword,
+        newPassword: passwordData.newPassword
+      })).unwrap();
+      toast.success('Password changed successfully!');
+      setShowPasswordForm(false);
+      setPasswordData({ oldPassword: '', newPassword: '', confirmPassword: '' });
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to change password');
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!user?.email) {
+      toast.error('No email address found');
+      return;
+    }
+
+    try {
+      await dispatch(forgotPassword(user.email)).unwrap();
+      toast.success('Password reset link sent to your email!');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to send password reset email');
+    }
+  };
+
+  const handleUpdateEmail = async () => {
+    if (!emailAddress || !emailAddress.includes('@')) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+
+    try {
+      await dispatch(updateEmail({ newEmail: emailAddress })).unwrap();
+      toast.success('Verification email sent to new email address!');
+      setEditingEmail(false);
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to update email address');
+    }
+  };
+
+
   if (!user) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -105,9 +206,48 @@ const ProfilePage: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Email Address
                 </label>
-                <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-900">
-                  {user.email}
-                </div>
+                {editingEmail ? (
+                  <div className="space-y-3">
+                    <input
+                      type="email"
+                      value={emailAddress}
+                      onChange={(e) => setEmailAddress(e.target.value)}
+                      placeholder="Enter your email address"
+                      className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      required
+                    />
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => {
+                          setEditingEmail(false);
+                          setEmailAddress(user.email || '');
+                        }}
+                        className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleUpdateEmail}
+                        disabled={loading}
+                        className="px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                      >
+                        {loading ? 'Saving...' : 'Save'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-900 flex-1">
+                      {user.email}
+                    </div>
+                    <button
+                      onClick={() => setEditingEmail(true)}
+                      className="ml-2 px-3 py-2 text-sm text-blue-600 hover:text-blue-700"
+                    >
+                      Edit
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -199,15 +339,21 @@ const ProfilePage: React.FC = () => {
                         </div>
                         
                         {!showVerificationForm ? (
-                          <div className="mt-4">
-                            <button
-                              onClick={handleSendVerification}
-                              disabled={loading}
-                              className="bg-yellow-600 px-4 py-2 rounded-md text-sm font-medium text-white hover:bg-yellow-700 disabled:opacity-50"
-                            >
-                              {loading ? 'Sending...' : 'Send Verification Code'}
-                            </button>
-                          </div>
+                        <div className="mt-4 flex space-x-3">
+                          <button
+                            onClick={handleSendVerification}
+                            disabled={loading}
+                            className="bg-yellow-600 px-4 py-2 rounded-md text-sm font-medium text-white hover:bg-yellow-700 disabled:opacity-50"
+                          >
+                            {loading ? 'Sending...' : 'Send Verification Code'}
+                          </button>
+                          <button
+                            onClick={() => navigate('/phone-verification')}
+                            className="bg-blue-600 px-4 py-2 rounded-md text-sm font-medium text-white hover:bg-blue-700"
+                          >
+                            Go to Phone Verification
+                          </button>
+                        </div>
                         ) : (
                           <form onSubmit={handleVerifyPhone} className="mt-4 space-y-3">
                             <div>
@@ -275,6 +421,183 @@ const ProfilePage: React.FC = () => {
                       </span>
                     </div>
                   </div>
+                )}
+              </div>
+            </div>
+
+            {/* Email Verification Section */}
+            <div className="border-t pt-6">
+              <h2 className="text-lg font-medium text-gray-900 mb-4">Email Verification</h2>
+              
+              <div className="space-y-4">
+                {/* Email Address Display */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Email Address
+                    </label>
+                    <div className="flex items-center space-x-2">
+                      {user.emailVerified ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          ✓ Verified
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                          ⚠ Not Verified
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-900">
+                    {user.email}
+                  </div>
+                </div>
+
+                {/* Email Verification Actions */}
+                {!user.emailVerified && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
+                    <div className="flex items-start">
+                      <div className="flex-shrink-0">
+                        <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <div className="ml-3 flex-1">
+                        <h3 className="text-sm font-medium text-yellow-800">
+                          Email Not Verified
+                        </h3>
+                        <div className="mt-2 text-sm text-yellow-700">
+                          <p>Verify your email address to secure your account and receive important notifications.</p>
+                        </div>
+                        
+                        <div className="mt-4 flex space-x-3">
+                          <button
+                            onClick={handleResendEmail}
+                            disabled={resendingEmail || loading}
+                            className="bg-yellow-600 px-4 py-2 rounded-md text-sm font-medium text-white hover:bg-yellow-700 disabled:opacity-50"
+                          >
+                            {resendingEmail ? 'Sending...' : 'Send Verification Email'}
+                          </button>
+                          <button
+                            onClick={() => navigate('/email-verification')}
+                            className="bg-blue-600 px-4 py-2 rounded-md text-sm font-medium text-white hover:bg-blue-700"
+                          >
+                            Go to Email Verification
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {user.emailVerified && (
+                  <div className="bg-green-50 border border-green-200 rounded-md p-4">
+                    <div className="flex items-center">
+                      <svg className="h-5 w-5 text-green-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      <span className="text-sm text-green-800 font-medium">
+                        Your email address is verified!
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Password Management Section */}
+            <div className="border-t pt-6">
+              <h2 className="text-lg font-medium text-gray-900 mb-4">Password Management</h2>
+              
+              <div className="space-y-4">
+                {!showPasswordForm ? (
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <button
+                      onClick={() => setShowPasswordForm(true)}
+                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    >
+                      Change Password
+                    </button>
+                    <button
+                      onClick={handleForgotPassword}
+                      disabled={loading}
+                      className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                    >
+                      {loading ? 'Sending...' : 'Send Password Reset Email'}
+                    </button>
+                  </div>
+                ) : (
+                  <form onSubmit={handlePasswordChange} className="space-y-4">
+                    <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+                      <h3 className="text-sm font-medium text-blue-800 mb-3">Change Password</h3>
+                      
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-sm font-medium text-blue-800 mb-1">
+                            Current Password
+                          </label>
+                          <input
+                            type="password"
+                            value={passwordData.oldPassword}
+                            onChange={(e) => setPasswordData({ ...passwordData, oldPassword: e.target.value })}
+                            className="block w-full px-3 py-2 border border-blue-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            required
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-blue-800 mb-1">
+                            New Password
+                          </label>
+                          <input
+                            type="password"
+                            value={passwordData.newPassword}
+                            onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                            className="block w-full px-3 py-2 border border-blue-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            required
+                          />
+                          <p className="mt-1 text-xs text-blue-600">
+                            Must be at least 8 characters with uppercase, lowercase, number, and special character
+                          </p>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-blue-800 mb-1">
+                            Confirm New Password
+                          </label>
+                          <input
+                            type="password"
+                            value={passwordData.confirmPassword}
+                            onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                            className="block w-full px-3 py-2 border border-blue-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            required
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="flex space-x-2 mt-4">
+                        <button
+                          type="submit"
+                          disabled={loading}
+                          className="bg-blue-600 px-4 py-2 rounded-md text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                        >
+                          {loading ? 'Changing...' : 'Change Password'}
+                        </button>
+                        
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowPasswordForm(false);
+                            setPasswordData({ oldPassword: '', newPassword: '', confirmPassword: '' });
+                          }}
+                          className="bg-transparent px-4 py-2 rounded-md text-sm font-medium text-blue-800 hover:bg-blue-100 border border-blue-300"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  </form>
                 )}
               </div>
             </div>

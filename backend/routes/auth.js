@@ -2,7 +2,9 @@ const express = require('express');
 const { check, validationResult } = require('express-validator');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const User = require('../models/User');
+const emailService = require('../services/emailService');
 const axios = require('axios');
 
 const router = express.Router();
@@ -196,9 +198,13 @@ async function sendSMSVerificationCode(phoneNumber, verificationCode) {
 router.post(
   '/register',
   [
-    check('name', 'Name is required').not().isEmpty(),
-    check('email', 'Please include a valid email').isEmail(),
-    check('password', 'Please enter a password with 6 or more characters').isLength({ min: 6 }),
+    check('name', 'Name is required').not().isEmpty().trim(),
+    check('email', 'Please include a valid email').isEmail().normalizeEmail(),
+    check('password')
+      .isLength({ min: 8 })
+      .withMessage('Password must be at least 8 characters long')
+      .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/) 
+      .withMessage('Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character (@$!%*?&)'),
     check('phone', 'Phone number is required').not().isEmpty(),
   ],
   async (req, res) => {
@@ -214,11 +220,18 @@ router.post(
     console.log('Extracted data:', { name, email, phone, password: password ? '[HIDDEN]' : 'MISSING' });
 
     try {
+      // Check if user already exists with email
       let user = await User.findOne({ email });
-
       if (user) {
         console.log('User already exists with email:', email);
-        return res.status(400).json({ errors: [{ msg: 'User already exists' }] });
+        return res.status(400).json({ errors: [{ msg: 'User already exists with this email address' }] });
+      }
+
+      // Check if phone number is already in use
+      const existingPhoneUser = await User.findOne({ phone });
+      if (existingPhoneUser) {
+        console.log('Phone number already in use:', phone);
+        return res.status(400).json({ errors: [{ msg: 'This phone number is already registered with another account' }] });
       }
 
       console.log('Creating new user...');
@@ -229,19 +242,23 @@ router.post(
         phone,
       });
 
+      // Generate email verification token
+      const emailVerificationToken = crypto.randomBytes(32).toString('hex');
+      user.emailVerificationToken = emailVerificationToken;
+      
       console.log('Saving user to database...');
       await user.save();
       console.log('User saved successfully:', user._id);
       
-      // Validate phone number
-      console.log('Validating phone number:', phone);
-      const phoneValidation = await validatePhoneNumber(phone);
+      // Send welcome email with verification
+      try {
+        const emailResult = await emailService.sendWelcomeEmail(user, emailVerificationToken);
+        console.log('Welcome email sent:', emailResult.success);
+      } catch (emailError) {
+        console.error('Failed to send welcome email:', emailError);
+      }
       
-      // More lenient validation - accept if phone validation service fails or if it's a possible number
-      // For development, we'll be very lenient and mainly check format
-      let isPhoneAcceptable = true;
-      
-      // Basic format validation - must start with + and have 10-15 digits
+      // Basic phone format validation - must start with + and have 10-15 digits
       if (!phone.match(/^\+\d{10,15}$/)) {
         await User.findByIdAndDelete(user._id);
         return res.status(400).json({ 
@@ -249,38 +266,11 @@ router.post(
         });
       }
       
-      // If external validation worked and says it's invalid AND not possible, then reject
-      if (phoneValidation && !phoneValidation.error && 
-          phoneValidation.isValid === false && phoneValidation.isPossible === false) {
-        console.log('Phone validation failed - both isValid and isPossible are false');
-        // Still allow it for now in development
-        // await User.findByIdAndDelete(user._id);
-        // return res.status(400).json({ 
-        //   errors: [{ msg: 'Invalid phone number. Please provide a valid phone number.' }] 
-        // });
-      }
-      
-      // Generate verification code
-      const verificationCode = generateVerificationCode();
-      const verificationExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-      
-      // Update user with phone validation info and verification code
-      user.phoneVerificationCode = verificationCode;
-      user.phoneVerificationExpires = verificationExpires;
-      user.phoneCountry = phoneValidation.country;
-      user.phoneCarrier = phoneValidation.carrier;
-      user.phone = phoneValidation.e164Format || phone; // Use standardized format
+      // Just save the phone number without verification for now
+      user.phone = phone;
       await user.save();
       
-      // Send SMS verification code
-      const smsResult = await sendSMSVerificationCode(user.phone, verificationCode);
-      
-      console.log(`Phone verified as valid. Verification code generated: ${verificationCode}`);
-      console.log(`Phone details - Country: ${phoneValidation.country}, Carrier: ${phoneValidation.carrier}`);
-      console.log(`SMS sending result:`, smsResult);
-      console.log(`NODE_ENV: ${process.env.NODE_ENV}`);
-      console.log(`Will include devCode: ${process.env.NODE_ENV === 'development'}`);
-      console.log(`DevCode to send: ${process.env.NODE_ENV === 'development' ? verificationCode : 'undefined'}`);
+      console.log('User registration completed successfully');
 
       const payload = {
         user: {
@@ -294,27 +284,19 @@ router.post(
         { expiresIn: process.env.JWT_EXPIRE || '7d' },
         (err, token) => {
           if (err) throw err;
-      res.json({ 
-        token,
-        message: smsResult.success ? 'Registration successful! SMS sent to your phone.' : 'Registration successful! Please check your phone for verification code.',
-        phoneVerificationRequired: true,
-        smsSuccess: smsResult.success,
-        // Include verification code in development mode for easier testing  
-        devCode: verificationCode, // Always include for now
-        debug: {
-          nodeEnv: process.env.NODE_ENV,
-          isDev: process.env.NODE_ENV === 'development',
-          codeLength: verificationCode ? verificationCode.length : 0
-        },
-        user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          phone: user.phone,
-          phoneVerified: user.phoneVerified,
-          phoneCountry: user.phoneCountry
-        }
-      });
+          res.json({ 
+            token,
+            message: 'Registration successful! Please verify your email and phone number in your profile.',
+            user: {
+              id: user.id,
+              name: user.name,
+              email: user.email,
+              phone: user.phone,
+              phoneVerified: user.phoneVerified || false,
+              emailVerified: user.emailVerified || false,
+              role: user.role
+            }
+          });
         }
       );
     } catch (err) {
@@ -415,6 +397,64 @@ router.get('/me', require('../middleware/auth'), async (req, res) => {
 // @access   Private
 router.post('/logout', require('../middleware/auth'), (req, res) => {
   res.json({ msg: 'User logged out successfully' });
+});
+
+// @route    POST api/auth/send-phone-verification
+// @desc     Send phone verification code from profile
+// @access   Private
+router.post('/send-phone-verification', require('../middleware/auth'), async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    
+    if (!user) {
+      return res.status(404).json({ errors: [{ msg: 'User not found' }] });
+    }
+    
+    if (user.phoneVerified) {
+      return res.status(400).json({ errors: [{ msg: 'Phone already verified' }] });
+    }
+    
+    if (!user.phone) {
+      return res.status(400).json({ errors: [{ msg: 'No phone number found. Please add a phone number first.' }] });
+    }
+    
+    // Check rate limiting
+    if (user.phoneVerificationAttempts && user.phoneVerificationAttempts >= 5) {
+      const lastAttempt = user.phoneVerificationLastAttempt;
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+      
+      if (lastAttempt && lastAttempt > oneHourAgo) {
+        return res.status(429).json({ 
+          errors: [{ msg: 'Too many attempts. Please try again in 1 hour.' }] 
+        });
+      }
+      
+      user.phoneVerificationAttempts = 0;
+    }
+    
+    // Generate verification code
+    const verificationCode = generateVerificationCode();
+    const verificationExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    
+    user.phoneVerificationCode = verificationCode;
+    user.phoneVerificationExpires = verificationExpires;
+    await user.save();
+    
+    // Send SMS verification code
+    const smsResult = await sendSMSVerificationCode(user.phone, verificationCode);
+    
+    console.log(`Phone verification code generated for user ${user._id}: ${verificationCode}`);
+    
+    res.json({ 
+      msg: 'Verification code sent to your phone',
+      phoneNumber: user.phone.replace(/\d(?=\d{4})/g, '*'), // Mask phone number
+      expiresIn: '10 minutes',
+      devCode: verificationCode // Include for development
+    });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
 });
 
 // @route    POST api/auth/verify-phone
@@ -518,6 +558,173 @@ router.post('/resend-verification', require('../middleware/auth'), async (req, r
       // Include verification code in development mode for easier testing
       devCode: verificationCode // Always include for debugging
     });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
+});
+
+// @route    POST api/auth/verify-email
+// @desc     Verify email address
+// @access   Public
+router.post('/verify-email', async (req, res) => {
+  const { token } = req.body;
+  
+  if (!token) {
+    return res.status(400).json({ errors: [{ msg: 'Verification token is required' }] });
+  }
+  
+  try {
+    // Check for regular email verification
+    let user = await User.findOne({ emailVerificationToken: token });
+    let isNewEmail = false;
+    
+    // If not found, check for new email verification
+    if (!user) {
+      user = await User.findOne({ newEmailVerificationToken: token });
+      isNewEmail = true;
+    }
+    
+    if (!user) {
+      return res.status(400).json({ errors: [{ msg: 'Invalid or expired verification token' }] });
+    }
+    
+    if (isNewEmail) {
+      // Handle new email verification
+      if (!user.newEmail) {
+        return res.status(400).json({ errors: [{ msg: 'No new email verification pending' }] });
+      }
+      
+      user.email = user.newEmail;
+      user.emailVerified = true;
+      user.newEmail = undefined;
+      user.newEmailVerificationToken = undefined;
+      user.newEmailVerificationSentAt = undefined;
+      await user.save();
+      
+      res.json({ msg: 'New email verified and updated successfully' });
+    } else {
+      // Handle regular email verification
+      if (user.emailVerified) {
+        return res.status(400).json({ errors: [{ msg: 'Email already verified' }] });
+      }
+      
+      user.emailVerified = true;
+      user.emailVerificationToken = undefined;
+      await user.save();
+      
+      res.json({ msg: 'Email verified successfully' });
+    }
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
+});
+
+// @route    POST api/auth/resend-email-verification
+// @desc     Resend email verification
+// @access   Private
+router.post('/resend-email-verification', require('../middleware/auth'), async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    
+    if (!user) {
+      return res.status(404).json({ errors: [{ msg: 'User not found' }] });
+    }
+    
+    if (user.emailVerified) {
+      return res.status(400).json({ errors: [{ msg: 'Email already verified' }] });
+    }
+    
+    // Generate new verification token
+    const emailVerificationToken = crypto.randomBytes(32).toString('hex');
+    user.emailVerificationToken = emailVerificationToken;
+    await user.save();
+    
+    // Send verification email
+    const emailResult = await emailService.sendEmailVerification(user, emailVerificationToken);
+    
+    res.json({ 
+      msg: 'Verification email sent successfully',
+      emailSent: emailResult.success
+    });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
+});
+
+// @route    POST api/auth/forgot-password
+// @desc     Request password reset
+// @access   Public
+router.post('/forgot-password', [
+  check('email', 'Please include a valid email').isEmail()
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+  
+  const { email } = req.body;
+  
+  try {
+    const user = await User.findOne({ email });
+    
+    if (!user) {
+      // Don't reveal if user exists or not for security
+      return res.json({ msg: 'If an account with that email exists, a password reset link has been sent.' });
+    }
+    
+    // Generate reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    user.passwordResetToken = resetToken;
+    user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    await user.save();
+    
+    // Send password reset email
+    const emailResult = await emailService.sendPasswordResetEmail(user, resetToken);
+    
+    res.json({ 
+      msg: 'If an account with that email exists, a password reset link has been sent.',
+      emailSent: emailResult.success
+    });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
+});
+
+// @route    POST api/auth/reset-password
+// @desc     Reset password with token
+// @access   Public
+router.post('/reset-password', [
+  check('token', 'Reset token is required').not().isEmpty(),
+  check('password', 'Please enter a password with 6 or more characters').isLength({ min: 6 })
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+  
+  const { token, password } = req.body;
+  
+  try {
+    const user = await User.findOne({
+      passwordResetToken: token,
+      passwordResetExpires: { $gt: new Date() }
+    });
+    
+    if (!user) {
+      return res.status(400).json({ errors: [{ msg: 'Invalid or expired reset token' }] });
+    }
+    
+    // Update password
+    user.password = password;
+    user.passwordResetToken = undefined;
+    user.passwordResetExpires = undefined;
+    await user.save();
+    
+    res.json({ msg: 'Password reset successfully' });
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server error');

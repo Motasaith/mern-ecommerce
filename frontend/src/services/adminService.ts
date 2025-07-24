@@ -44,6 +44,11 @@ const adminService = {
     return response.data;
   },
 
+  deleteUser: async (id: string) => {
+    const response = await apiService.delete(`/admin/users/${id}`);
+    return response.data;
+  },
+
   // Orders
   getOrders: async (params = {}) => {
     const response = await apiService.get('/admin/orders', { params });

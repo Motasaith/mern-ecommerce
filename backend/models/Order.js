@@ -94,6 +94,14 @@ const orderSchema = new mongoose.Schema({
   paidAt: {
     type: Date
   },
+  isShipped: {
+    type: Boolean,
+    required: true,
+    default: false
+  },
+  shippedAt: {
+    type: Date
+  },
   isDelivered: {
     type: Boolean,
     required: true,
@@ -101,6 +109,11 @@ const orderSchema = new mongoose.Schema({
   },
   deliveredAt: {
     type: Date
+  },
+  trackingInfo: {
+    trackingNumber: String,
+    carrier: String,
+    trackingUrl: String
   },
   orderStatus: {
     type: String,

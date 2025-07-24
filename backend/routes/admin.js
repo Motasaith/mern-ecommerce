@@ -7,6 +7,7 @@ const {
   deleteProduct,
   getAdminUsers,
   updateUserStatus,
+  deleteUser,
   getAdminOrders,
   updateOrderStatus
 } = require('../controllers/adminController');
@@ -29,6 +30,7 @@ router.delete('/products/:id', auth, admin, deleteProduct);
 // Users
 router.get('/users', auth, admin, getAdminUsers);
 router.put('/users/:id/status', auth, admin, updateUserStatus);
+router.delete('/users/:id', auth, admin, deleteUser);
 
 // Orders
 router.get('/orders', auth, admin, getAdminOrders);

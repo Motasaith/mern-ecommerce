@@ -10,6 +10,13 @@ interface User {
   role: string;
   isActive: boolean;
   createdAt: string;
+  emailVerified?: boolean;
+  phoneVerified?: boolean;
+  verificationStatus?: {
+    emailVerified: boolean;
+    phoneVerified: boolean;
+    isFullyVerified: boolean;
+  };
 }
 
 const AdminUsers: React.FC = () => {
@@ -51,8 +58,15 @@ const AdminUsers: React.FC = () => {
     fetchUsers();
   }, [debouncedSearchTerm, selectedRole]);
 
-  // Data is already filtered by the API based on searchTerm and selectedRole
-  const filteredUsers = users;
+  // Process users data to include verification status
+  const filteredUsers = users.map(user => ({
+    ...user,
+    verificationStatus: user.verificationStatus || {
+      emailVerified: !!user.emailVerified,
+      phoneVerified: !!user.phoneVerified,
+      isFullyVerified: (!!user.emailVerified && !!user.phoneVerified)
+    }
+  }));
 
   const handleToggleStatus = async (id: string) => {
     const user = users.find(u => u._id === id);
@@ -67,6 +81,24 @@ const AdminUsers: React.FC = () => {
     } catch (error) {
       console.error('Error updating user status:', error);
       toast.error('Failed to update user status');
+    }
+  };
+
+  const handleDeleteUser = async (id: string) => {
+    const user = users.find(u => u._id === id);
+    if (!user) return;
+    
+    if (!window.confirm(`Are you sure you want to delete user "${user.name}"? This action cannot be undone.`)) {
+      return;
+    }
+    
+    try {
+      await adminService.deleteUser(id);
+      setUsers(users.filter(u => u._id !== id));
+      toast.success('User deleted successfully');
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      toast.error('Failed to delete user');
     }
   };
 
@@ -150,6 +182,12 @@ const AdminUsers: React.FC = () => {
                   Role
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Email Verified
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Phone Verified
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -180,20 +218,42 @@ const AdminUsers: React.FC = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                      user.verificationStatus?.emailVerified ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                    }`}>
+                      {user.verificationStatus?.emailVerified ? '✓ Yes' : '✗ No'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                      user.verificationStatus?.phoneVerified ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                    }`}>
+                      {user.verificationStatus?.phoneVerified ? '✓ Yes' : '✗ No'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                       user.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                     }`}>
                       {user.isActive ? 'Active' : 'Inactive'}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button
-                      onClick={() => handleToggleStatus(user._id)}
-                      className={`inline-flex items-center px-3 py-1 border border-transparent text-sm leading-4 font-medium rounded-md text-white ${
-                        user.isActive ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-green-600 hover:bg-green-700'
-                      }`}
-                    >
-                      {user.isActive ? 'Deactivate' : 'Activate'}
-                    </button>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => handleToggleStatus(user._id)}
+                        className={`inline-flex items-center px-3 py-1 border border-transparent text-sm leading-4 font-medium rounded-md text-white ${
+                          user.isActive ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-green-600 hover:bg-green-700'
+                        }`}
+                      >
+                        {user.isActive ? 'Deactivate' : 'Activate'}
+                      </button>
+                      <button
+                        onClick={() => handleDeleteUser(user._id)}
+                        className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-red-600 hover:bg-red-700"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
