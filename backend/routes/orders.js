@@ -36,9 +36,23 @@ router.post('/', [
   } = req.body;
 
   try {
+    console.log('=== ORDER CREATION DEBUG ===');
+    console.log('Request body:', JSON.stringify(req.body, null, 2));
+    console.log('User ID:', req.user?.id);
+    console.log('User object:', req.user);
+    
     if (orderItems && orderItems.length === 0) {
+      console.log('Error: No order items provided');
       return res.status(400).json({ msg: 'No order items' });
     }
+
+    console.log('Creating order with data:', {
+      orderItems: orderItems?.length || 0,
+      userId: req.user.id,
+      shippingAddress,
+      paymentMethod,
+      totalPrice
+    });
 
     const order = new Order({
       orderItems,
@@ -51,16 +65,21 @@ router.post('/', [
       totalPrice
     });
 
+    console.log('Order object created, attempting to save...');
     const createdOrder = await order.save();
+    console.log('Order saved successfully with ID:', createdOrder._id);
     
     // Populate the order with user and product details for email
+    console.log('Populating order for email...');
     const populatedOrder = await Order.findById(createdOrder._id)
       .populate('user', 'name email')
       .populate('orderItems.product', 'name price');
+    console.log('Order populated successfully');
     
     // Send order confirmation email
     try {
       if (populatedOrder.user && populatedOrder.user.email) {
+        console.log('Sending order confirmation email to:', populatedOrder.user.email);
         // Transform order items for email template
         const orderWithItems = {
           ...populatedOrder.toObject(),
@@ -77,15 +96,32 @@ router.post('/', [
           orderWithItems
         );
         console.log('Order confirmation email sent:', emailResult.success);
+      } else {
+        console.log('Skipping email - no user email found');
       }
     } catch (emailError) {
       console.error('Failed to send order confirmation email:', emailError);
+      // Don't fail the request if email fails
     }
     
+    console.log('Order creation successful, returning response');
     res.status(201).json(createdOrder);
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server Error');
+    console.error('=== ORDER CREATION ERROR ===');
+    console.error('Error message:', err.message);
+    console.error('Error stack:', err.stack);
+    console.error('Error details:', err);
+    
+    // Return more detailed error in development
+    if (process.env.NODE_ENV === 'development') {
+      return res.status(500).json({ 
+        error: 'Server Error', 
+        message: err.message,
+        stack: err.stack 
+      });
+    }
+    
+    res.status(500).json({ error: 'Server Error', message: err.message });
   }
 });
 

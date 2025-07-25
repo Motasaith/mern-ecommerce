@@ -67,20 +67,25 @@ const CheckoutPage: React.FC = () => {
     try {
       // Transform frontend form data to match backend Address schema
       const transformedShippingAddress = {
-        name: formData.fullName,
-        street: formData.address,
+        address: formData.address, // Backend expects 'address', not 'street'
         city: formData.city,
-        state: 'N/A', // Default value since not collected in form
-        zipCode: formData.postalCode,
-        country: 'Pakistan', // Default country
+        postalCode: formData.postalCode, // Backend expects 'postalCode', not 'zipCode'
+        country: 'Pakistan', // Required field in backend
+        // Optional fields that backend may accept
+        name: formData.fullName,
         phone: formData.phone
       };
+
+      // Map frontend payment method values to backend enum values
+      const backendPaymentMethod = formData.paymentMethod === 'cod' 
+        ? 'Cash on Delivery' 
+        : 'Credit Card';
 
       await dispatch(createOrder({
         orderItems: items,
         user: user.id,
         shippingAddress: transformedShippingAddress,
-        paymentMethod: formData.paymentMethod,
+        paymentMethod: backendPaymentMethod,
         itemsPrice: totalPrice,
         shippingPrice: deliveryFee,
         totalPrice: totalWithDelivery,
