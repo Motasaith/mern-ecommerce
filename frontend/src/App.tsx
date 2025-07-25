@@ -12,6 +12,7 @@ import Layout from './components/layout/Layout';
 import AdminLayout from './components/layout/AdminLayout';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import AdminRoute from './components/common/AdminRoute';
+import ScrollToTop from './components/common/ScrollToTop';
 
 // Pages
 import HomePage from './pages/HomePage';
@@ -40,6 +41,9 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminProducts from './pages/admin/AdminProducts';
 import AdminOrders from './pages/admin/AdminOrders';
 import AdminUsers from './pages/admin/AdminUsers';
+import AdminNewsletter from './pages/admin/AdminNewsletter';
+import AdminAnalytics from './pages/admin/AdminAnalytics';
+import AdminSettings from './pages/admin/AdminSettings';
 
 // Loading component
 const LoadingSpinner = () => (
@@ -61,7 +65,8 @@ function AppContent() {
 
   return (
     <Router>
-      <div className="App">
+<ScrollToTop />
+        <div className="App">
         <Routes>
           {/* Public Routes */}
           <Route path="/" element={<Layout />}>
@@ -110,6 +115,9 @@ function AppContent() {
             <Route path="products" element={<AdminProducts />} />
             <Route path="orders" element={<AdminOrders />} />
             <Route path="users" element={<AdminUsers />} />
+            <Route path="newsletter" element={<AdminNewsletter />} />
+            <Route path="analytics" element={<AdminAnalytics />} />
+            <Route path="settings" element={<AdminSettings />} />
           </Route>
 
           {/* 404 Page */}

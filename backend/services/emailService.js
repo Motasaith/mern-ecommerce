@@ -591,8 +591,180 @@ Please verify your email address to secure your ShopHub account. This applies to
       to,
       subject: `${subject} - ShopHub`,
       html,
-      text: content.replace(/<[^>]*>/g, '') // Strip HTML for text version
+      text: content.replace(/\<[^\>]*\>/g, '') // Strip HTML for text version
     });
+  }
+
+  /**
+   * Send newsletter welcome email
+   */
+  async sendNewsletterWelcome(subscriber) {
+    const unsubscribeUrl = `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/newsletter/unsubscribe/${subscriber.unsubscribeToken}`;
+    
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Welcome to ShopHub Newsletter!</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+        <div style="max-width: 600px; margin: 0 auto; background-color: white;">
+          <!-- Header -->
+          <div style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); padding: 40px 20px; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 28px;">🎉 Welcome to ShopHub!</h1>
+            <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 16px;">Thanks for subscribing to our newsletter!</p>
+          </div>
+          
+          <!-- Content -->
+          <div style="padding: 40px 30px;">
+            <h2 style="color: #333; margin-top: 0;">Hi there! 👋</h2>
+            
+            <p style="color: #666; line-height: 1.6; font-size: 16px;">
+              Welcome to the ShopHub family! You're now subscribed to receive:
+            </p>
+            
+            <div style="background: #f8fafc; padding: 25px; border-radius: 8px; margin: 25px 0;">
+              <ul style="color: #374151; line-height: 1.8; padding-left: 20px; margin: 0;">
+                <li>🏷️ <strong>Exclusive deals and discounts</strong> - Get early access to sales!</li>
+                <li>🆕 <strong>New product announcements</strong> - Be the first to know!</li>
+                <li>📱 <strong>Product updates and features</strong> - Stay in the loop!</li>
+                <li>🎁 <strong>Special offers</strong> - Subscriber-only promotions!</li>
+              </ul>
+            </div>
+            
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/products" style="display: inline-block; background: #4f46e5; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">Start Shopping Now! 🛍️</a>
+            </div>
+            
+            <p style="color: #666; line-height: 1.6; font-size: 16px;">
+              Thank you for joining us on this journey. We're excited to keep you updated with the best deals and newest products!
+            </p>
+          </div>
+          
+          <!-- Footer -->
+          <div style="background: #f9fafb; padding: 25px; text-align: center; color: #6b7280; font-size: 14px; border-top: 1px solid #e5e7eb;">
+            <p style="margin: 0 0 10px 0;">📧 You're receiving this because you subscribed to ShopHub newsletter from our ${subscriber.subscriptionSource || 'website'}.</p>
+            <p style="margin: 0 0 15px 0;">Don't want to receive these emails? <a href="${unsubscribeUrl}" style="color: #4f46e5;">Unsubscribe here</a></p>
+            <p style="margin: 0; font-size: 12px; color: #9ca3af;">© 2024 ShopHub. All rights reserved.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const text = `
+      Welcome to ShopHub Newsletter!
+      
+      Hi there!
+      
+      Welcome to the ShopHub family! You're now subscribed to receive:
+      
+      • Exclusive deals and discounts - Get early access to sales!
+      • New product announcements - Be the first to know!
+      • Product updates and features - Stay in the loop!
+      • Special offers - Subscriber-only promotions!
+      
+      Start Shopping: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/products
+      
+      Thank you for joining us on this journey. We're excited to keep you updated with the best deals and newest products!
+      
+      Don't want to receive these emails? Unsubscribe: ${unsubscribeUrl}
+      
+      © 2024 ShopHub. All rights reserved.
+    `;
+
+    return await this.sendEmail({
+      to: subscriber.email, 
+      subject: '🎉 Welcome to ShopHub Newsletter - Exclusive Deals Await!',
+      html,
+      text
+    });
+  }
+
+  /**
+   * Send newsletter broadcast email
+   */
+  async sendNewsletterBroadcast({ subscribers, subject, content, campaignName = 'General' }) {
+    const results = [];
+    
+    for (const subscriber of subscribers) {
+      try {
+        const unsubscribeUrl = `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/newsletter/unsubscribe/${subscriber.unsubscribeToken}`;
+        
+        const html = `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>${subject}</title>
+          </head>
+          <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+            <div style="max-width: 600px; margin: 0 auto; background-color: white;">
+              <!-- Header -->
+              <div style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); padding: 30px 20px; text-align: center;">
+                <h1 style="color: white; margin: 0; font-size: 24px;">ShopHub</h1>
+              </div>
+              
+              <!-- Content -->
+              <div style="padding: 40px 30px;">
+                ${content}
+              </div>
+              
+              <!-- Footer -->
+              <div style="background: #f9fafb; padding: 20px; text-align: center; color: #6b7280; font-size: 12px; border-top: 1px solid #e5e7eb;">
+                <p style="margin: 0 0 10px 0;">You're receiving this because you're subscribed to ShopHub newsletter.</p>
+                <p style="margin: 0;">Don't want to receive these emails? <a href="${unsubscribeUrl}" style="color: #4f46e5;">Unsubscribe here</a></p>
+                <p style="margin: 10px 0 0 0; color: #9ca3af;">© 2024 ShopHub. All rights reserved.</p>
+              </div>
+            </div>
+          </body>
+          </html>
+        `;
+
+        const result = await this.sendEmail({
+          to: subscriber.email,
+          subject: `${subject} - ShopHub`,
+          html,
+          text: content.replace(/\<[^\>]*\>/g, '') // Strip HTML for text version
+        });
+
+        results.push({ 
+          email: subscriber.email, 
+          success: result.success,
+          error: result.error 
+        });
+
+        // Update subscriber stats
+        if (result.success) {
+          subscriber.emailsSent = (subscriber.emailsSent || 0) + 1;
+          subscriber.lastEmailSent = new Date();
+          await subscriber.save();
+        }
+        
+        // Add small delay to avoid overwhelming email service
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+      } catch (error) {
+        console.error(`Failed to send newsletter to ${subscriber.email}:`, error);
+        results.push({ 
+          email: subscriber.email, 
+          success: false, 
+          error: error.message 
+        });
+      }
+    }
+    
+    return {
+      success: true,
+      campaignName,
+      totalEmails: subscribers.length,
+      successful: results.filter(r => r.success).length,
+      failed: results.filter(r => !r.success).length,
+      results
+    };
   }
 }
 

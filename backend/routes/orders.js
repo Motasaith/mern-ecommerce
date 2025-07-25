@@ -102,6 +102,148 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
+// @route    GET api/orders/stats
+// @desc     Get order statistics for analytics
+// @access   Private/Admin
+router.get('/stats', [auth, admin], async (req, res) => {
+  try {
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+    // Get total statistics
+    const totalOrders = await Order.countDocuments();
+    const totalRevenue = await Order.aggregate([
+      { $match: { isPaid: true } },
+      { $group: { _id: null, total: { $sum: '$totalPrice' } } }
+    ]);
+
+    // Get recent statistics (last 30 days)
+    const recentOrders = await Order.countDocuments({
+      createdAt: { $gte: thirtyDaysAgo }
+    });
+    const recentRevenue = await Order.aggregate([
+      { $match: { isPaid: true, createdAt: { $gte: thirtyDaysAgo } } },
+      { $group: { _id: null, total: { $sum: '$totalPrice' } } }
+    ]);
+
+    // Get previous period for comparison (30-60 days ago)
+    const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+    const previousOrders = await Order.countDocuments({
+      createdAt: { $gte: sixtyDaysAgo, $lt: thirtyDaysAgo }
+    });
+    const previousRevenue = await Order.aggregate([
+      { $match: { isPaid: true, createdAt: { $gte: sixtyDaysAgo, $lt: thirtyDaysAgo } } },
+      { $group: { _id: null, total: { $sum: '$totalPrice' } } }
+    ]);
+
+    // Calculate growth percentages
+    const orderGrowth = previousOrders > 0 
+      ? ((recentOrders - previousOrders) / previousOrders * 100)
+      : recentOrders > 0 ? 100 : 0;
+    
+    const revenueGrowth = previousRevenue.length > 0 && previousRevenue[0].total > 0
+      ? ((recentRevenue[0]?.total || 0) - previousRevenue[0].total) / previousRevenue[0].total * 100
+      : (recentRevenue[0]?.total || 0) > 0 ? 100 : 0;
+
+    // Get average order value
+    const avgOrderValue = totalOrders > 0 ? (totalRevenue[0]?.total || 0) / totalOrders : 0;
+
+    // Get daily sales data for the last 7 days
+    const dailySales = await Order.aggregate([
+      {
+        $match: {
+          isPaid: true,
+          createdAt: { $gte: sevenDaysAgo }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            year: { $year: '$createdAt' },
+            month: { $month: '$createdAt' },
+            day: { $dayOfMonth: '$createdAt' }
+          },
+          revenue: { $sum: '$totalPrice' },
+          orders: { $sum: 1 }
+        }
+      },
+      {
+        $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1 }
+      }
+    ]);
+
+    // Get top products from recent orders
+    const topProducts = await Order.aggregate([
+      { $match: { createdAt: { $gte: thirtyDaysAgo } } },
+      { $unwind: '$orderItems' },
+      {
+        $group: {
+          _id: '$orderItems.product',
+          name: { $first: '$orderItems.name' },
+          totalQuantity: { $sum: '$orderItems.qty' },
+          totalRevenue: { $sum: { $multiply: ['$orderItems.qty', '$orderItems.price'] } }
+        }
+      },
+      { $sort: { totalQuantity: -1 } },
+      { $limit: 5 }
+    ]);
+
+    // Get recent activity (last 10 orders)
+    const recentActivity = await Order.find({})
+      .populate('user', 'name')
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .select('_id totalPrice createdAt user isPaid isShipped isDelivered');
+
+    // Get user count
+    const User = require('../models/User');
+    const totalUsers = await User.countDocuments();
+    const recentUsers = await User.countDocuments({
+      createdAt: { $gte: thirtyDaysAgo }
+    });
+    const previousUsers = await User.countDocuments({
+      createdAt: { $gte: sixtyDaysAgo, $lt: thirtyDaysAgo }
+    });
+    const userGrowth = previousUsers > 0 
+      ? ((recentUsers - previousUsers) / previousUsers * 100)
+      : recentUsers > 0 ? 100 : 0;
+
+    res.json({
+      totalRevenue: totalRevenue[0]?.total || 0,
+      totalOrders,
+      totalUsers,
+      avgOrderValue,
+      revenueGrowth: Math.round(revenueGrowth * 100) / 100,
+      orderGrowth: Math.round(orderGrowth * 100) / 100,
+      userGrowth: Math.round(userGrowth * 100) / 100,
+      dailySales: dailySales.map(day => ({
+        date: `${day._id.year}-${String(day._id.month).padStart(2, '0')}-${String(day._id.day).padStart(2, '0')}`,
+        revenue: day.revenue,
+        orders: day.orders
+      })),
+      topProducts: topProducts.map(product => ({
+        id: product._id,
+        name: product.name,
+        quantity: product.totalQuantity,
+        revenue: product.totalRevenue
+      })),
+      recentActivity: recentActivity.map(order => ({
+        id: order._id,
+        type: 'order',
+        description: `Order #${order._id.toString().slice(-6)} by ${order.user?.name || 'Unknown'}`,
+        amount: order.totalPrice,
+        status: order.isDelivered ? 'delivered' : order.isShipped ? 'shipped' : order.isPaid ? 'paid' : 'pending',
+        createdAt: order.createdAt
+      }))
+    });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
 // @route    GET api/orders/:id
 // @desc     Get order by ID
 // @access   Private
@@ -114,16 +256,13 @@ router.get('/:id', auth, async (req, res) => {
     }
 
     // Check if user owns this order or is admin
-    if (order.user._id.toString() !== req.user.id && req.user.role !== 'admin') {
+    if (order.user.toString() !== req.user.id && !req.user.isAdmin) {
       return res.status(401).json({ msg: 'Not authorized' });
     }
 
     res.json(order);
   } catch (err) {
     console.error(err.message);
-    if (err.kind === 'ObjectId') {
-      return res.status(404).json({ msg: 'Order not found' });
-    }
     res.status(500).send('Server Error');
   }
 });
@@ -229,6 +368,7 @@ router.put('/:id/deliver', [auth, admin], async (req, res) => {
     res.status(500).send('Server Error');
   }
 });
+
 
 // @route    GET api/orders/admin/all
 // @desc     Get all orders

@@ -65,10 +65,22 @@ const CheckoutPage: React.FC = () => {
 
     setIsSubmitting(true);
     try {
+      // Transform frontend form data to match backend Address schema
+      const transformedShippingAddress = {
+        name: formData.fullName,
+        street: formData.address,
+        city: formData.city,
+        state: 'N/A', // Default value since not collected in form
+        zipCode: formData.postalCode,
+        country: 'Pakistan', // Default country
+        phone: formData.phone
+      };
+
       await dispatch(createOrder({
         orderItems: items,
         user: user.id,
-        shippingAddress: formData,
+        shippingAddress: transformedShippingAddress,
+        paymentMethod: formData.paymentMethod,
         itemsPrice: totalPrice,
         shippingPrice: deliveryFee,
         totalPrice: totalWithDelivery,
@@ -278,19 +290,23 @@ const CheckoutPage: React.FC = () => {
               
               <div className="space-y-4">
                 {items.map((item) => (
-                  <div key={item.product} className="flex items-center space-x-4">
-                    <img
-                      src={item.image || 'https://via.placeholder.com/60x60?text=No+Image'}
-                      alt={item.name}
-                      className="w-15 h-15 object-cover rounded"
-                    />
-                    <div className="flex-grow">
-                      <h4 className="text-sm font-medium text-gray-900">{item.name}</h4>
-                      <p className="text-sm text-gray-500">Qty: {item.quantity}</p>
+                  <div key={item.product} className="flex items-center space-x-3">
+                    <div className="flex-shrink-0">
+                      <img
+                        src={item.image || 'https://via.placeholder.com/64x64?text=No+Image'}
+                        alt={item.name}
+                        className="w-16 h-16 object-cover rounded-lg border border-gray-200"
+                      />
                     </div>
-                    <span className="text-sm font-medium text-gray-900">
-                      Rs. {(item.price * item.quantity).toFixed(2)}
-                    </span>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm font-medium text-gray-900 truncate">{item.name}</h4>
+                      <p className="text-sm text-gray-500 mt-1">Quantity: {item.quantity}</p>
+                    </div>
+                    <div className="flex-shrink-0 text-right">
+                      <span className="text-sm font-semibold text-gray-900">
+                        Rs. {(item.price * item.quantity).toFixed(2)}
+                      </span>
+                    </div>
                   </div>
                 ))}
                 

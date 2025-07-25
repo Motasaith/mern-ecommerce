@@ -1,7 +1,9 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../hooks/redux';
 import { fetchProducts } from '../store/slices/productSlice';
+import newsletterService from '../services/newsletterService';
+import { toast } from 'react-hot-toast';
 import { 
   ArrowRightIcon, 
   StarIcon, 
@@ -15,10 +17,42 @@ import {
 const HomePage: React.FC = () => {
   const dispatch = useAppDispatch();
   const { products, loading } = useAppSelector((state) => state.products);
+  const [newsletterEmail, setNewsletterEmail] = useState('');
+  const [newsletterLoading, setNewsletterLoading] = useState(false);
 
   useEffect(() => {
     dispatch(fetchProducts({ page: 1, limit: 8 }));
   }, [dispatch]);
+
+  const handleNewsletterSubscribe = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!newsletterEmail) {
+      toast.error('Please enter your email address');
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newsletterEmail)) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+
+    setNewsletterLoading(true);
+    
+    try {
+      const response = await newsletterService.subscribe({
+        email: newsletterEmail,
+        source: 'homepage'
+      });
+      
+      toast.success(response.message || 'Successfully subscribed to newsletter!');
+      setNewsletterEmail('');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to subscribe. Please try again.');
+    } finally {
+      setNewsletterLoading(false);
+    }
+  };
 
   const featuredProducts = products.slice(0, 4);
   const categories = [
@@ -211,16 +245,23 @@ const HomePage: React.FC = () => {
           <p className="text-blue-100 mb-8 max-w-2xl mx-auto">
             Subscribe to our newsletter and get exclusive deals, new arrivals, and special offers.
           </p>
-          <div className="max-w-md mx-auto flex flex-col sm:flex-row gap-4">
+          <form onSubmit={handleNewsletterSubscribe} className="max-w-md mx-auto flex flex-col sm:flex-row gap-4">
             <input
               type="email"
               placeholder="Enter your email"
-              className="flex-1 px-4 py-3 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-300"
+              value={newsletterEmail}
+              onChange={(e) => setNewsletterEmail(e.target.value)}
+              disabled={newsletterLoading}
+              className="flex-1 px-4 py-3 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:opacity-50"
             />
-            <button className="bg-white text-blue-600 px-6 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors">
-              Subscribe
+            <button 
+              type="submit"
+              disabled={newsletterLoading}
+              className="bg-white text-blue-600 px-6 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {newsletterLoading ? 'Subscribing...' : 'Subscribe'}
             </button>
-          </div>
+          </form>
         </div>
       </div>
     </div>
