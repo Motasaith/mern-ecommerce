@@ -1,6 +1,9 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const HelpPage: React.FC = () => {
+  const navigate = useNavigate();
+  
   const faqs = [
     {
       question: "How do I place an order?",
@@ -105,7 +108,10 @@ const HelpPage: React.FC = () => {
             <div className="mt-12 bg-blue-50 p-6 rounded-lg text-center">
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Still need help?</h3>
               <p className="text-gray-600 mb-4">Our customer service team is here to help you 24/7</p>
-              <button className="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700 transition-colors">
+              <button 
+                onClick={() => navigate('/contact')}
+                className="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+              >
                 Contact Support
               </button>
             </div>

@@ -120,6 +120,8 @@ app.use('/api/admin', require('./routes/admin'));
 app.use('/api/webhooks', require('./routes/webhooks'));
 app.use('/api/verification', require('./routes/verification'));
 app.use('/api/newsletter', require('./routes/newsletter'));
+app.use('/api/contact', require('./routes/contact'));
+app.use('/api/wishlist', require('./routes/wishlist'));
 
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {

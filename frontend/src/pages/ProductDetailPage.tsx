@@ -6,7 +6,6 @@ import { addToCart } from '../store/slices/cartSlice';
 import { 
   StarIcon, 
   ShoppingCartIcon, 
-  HeartIcon, 
   TruckIcon,
   CreditCardIcon,
   ShieldCheckIcon,
@@ -23,6 +22,7 @@ import {
   ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
 import { StarIcon as StarSolidIcon } from '@heroicons/react/24/solid';
+import WishlistButton from '../components/common/WishlistButton';
 import toast from 'react-hot-toast';
 
 const ProductDetailPage: React.FC = () => {
@@ -278,9 +278,11 @@ const ProductDetailPage: React.FC = () => {
                 </div>
                 
                 <div className="flex space-x-3">
-                  <button className="p-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-                    <HeartIcon className="h-5 w-5 text-gray-600" />
-                  </button>
+                  <WishlistButton 
+                    productId={product._id}
+                    className="p-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                    size="md"
+                  />
                   <button
                     onClick={handleAddToCart}
                     disabled={product.countInStock === 0}

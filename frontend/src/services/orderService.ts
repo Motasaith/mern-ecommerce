@@ -42,9 +42,14 @@ class OrderService {
     return apiService.put(`/orders/${id}/cancel`);
   }
 
-  // Track order
+  // Track order by tracking number
   async trackOrder(trackingNumber: string) {
     return apiService.get(`/orders/track/${trackingNumber}`);
+  }
+
+  // Track order by order ID and email
+  async trackOrderById(orderId: string, email: string) {
+    return apiService.post('/orders/track-by-order', { orderId, email });
   }
 
   // Get order statistics (admin only)

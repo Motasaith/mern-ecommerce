@@ -1,15 +1,15 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../hooks/redux';
-import { addToCart, removeFromCart, updateQuantity, clearCart } from '../store/slices/cartSlice';
+import { removeFromCart, updateQuantity, clearCart } from '../store/slices/cartSlice';
 import {
+  ShoppingCartIcon,
   TrashIcon,
-  MinusIcon,
   PlusIcon,
-  ShoppingBagIcon,
-  ArrowLeftIcon,
-  HeartIcon
+  MinusIcon,
+  ArrowLeftIcon
 } from '@heroicons/react/24/outline';
+import WishlistButton from '../components/common/WishlistButton';
 import toast from 'react-hot-toast';
 
 const CartPage: React.FC = () => {
@@ -61,7 +61,7 @@ const CartPage: React.FC = () => {
       <div className="min-h-screen bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="text-center py-16">
-            <ShoppingBagIcon className="mx-auto h-24 w-24 text-gray-400" />
+            <ShoppingCartIcon className="mx-auto h-24 w-24 text-gray-400" />
             <h2 className="mt-4 text-3xl font-bold text-gray-900">Your cart is empty</h2>
             <p className="mt-2 text-lg text-gray-600">
               Looks like you haven't added any items to your cart yet.
@@ -173,12 +173,11 @@ const CartPage: React.FC = () => {
                           </div>
 
                           <div className="flex items-center space-x-2">
-                            <button
-                              className="p-2 text-gray-400 hover:text-red-500 transition-colors"
-                              title="Add to Wishlist"
-                            >
-                              <HeartIcon className="h-5 w-5" />
-                            </button>
+                            <WishlistButton 
+                              productId={item.product}
+                              className="p-2"
+                              size="md"
+                            />
                             <button
                               onClick={() => handleRemoveItem(item.product)}
                               className="p-2 text-gray-400 hover:text-red-500 transition-colors"

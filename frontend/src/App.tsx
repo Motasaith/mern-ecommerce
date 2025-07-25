@@ -35,6 +35,13 @@ import AboutPage from './pages/AboutPage';
 import ContactPage from './pages/ContactPage';
 import HelpPage from './pages/HelpPage';
 import ReturnsPage from './pages/ReturnsPage';
+import TrackOrderPage from './pages/TrackOrderPage';
+import WishlistPage from './pages/WishlistPage';
+import ShippingPage from './pages/ShippingPage';
+import SizeGuidePage from './pages/SizeGuidePage';
+import PressPage from './pages/PressPage';
+import BlogPage from './pages/BlogPage';
+import CareersPage from './pages/CareersPage';
 
 // Admin Pages
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -85,6 +92,13 @@ function AppContent() {
             <Route path="contact" element={<ContactPage />} />
             <Route path="help" element={<HelpPage />} />
             <Route path="returns" element={<ReturnsPage />} />
+            <Route path="track" element={<TrackOrderPage />} />
+            <Route path="track/:trackingNumber" element={<TrackOrderPage />} />
+            <Route path="shipping" element={<ShippingPage />} />
+            <Route path="size-guide" element={<SizeGuidePage />} />
+            <Route path="press" element={<PressPage />} />
+            <Route path="blog" element={<BlogPage />} />
+            <Route path="careers" element={<CareersPage />} />
           </Route>
 
           {/* Protected Routes */}
@@ -100,6 +114,7 @@ function AppContent() {
             <Route path="profile" element={<ProfilePage />} />
             <Route path="orders" element={<OrdersPage />} />
             <Route path="orders/:id" element={<OrderDetailPage />} />
+            <Route path="wishlist" element={<WishlistPage />} />
           </Route>
 
           {/* Admin Routes */}

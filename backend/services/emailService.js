@@ -728,7 +728,7 @@ Please verify your email address to secure your ShopHub account. This applies to
           to: subscriber.email,
           subject: `${subject} - ShopHub`,
           html,
-          text: content.replace(/\<[^\>]*\>/g, '') // Strip HTML for text version
+          text: content.replace(/<[^>]*>/g, '') // Strip HTML for text version
         });
 
         results.push({ 
@@ -765,6 +765,378 @@ Please verify your email address to secure your ShopHub account. This applies to
       failed: results.filter(r => !r.success).length,
       results
     };
+  }
+
+  /**
+   * Send contact form confirmation email to user
+   */
+  async sendContactConfirmation(contact) {
+    const priorityColors = {
+      low: '#10b981',
+      medium: '#f59e0b', 
+      high: '#ef4444',
+      urgent: '#dc2626'
+    };
+
+    const subjectLabels = {
+      general: 'General Inquiry',
+      support: 'Customer Support',
+      order: 'Order Issue',
+      return: 'Return/Refund',
+      feedback: 'Feedback',
+      other: 'Other'
+    };
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Contact Confirmation - ShopHub</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+        <div style="max-width: 600px; margin: 0 auto; background-color: white;">
+          <!-- Header -->
+          <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 40px 20px; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 28px; font-weight: bold;">
+              ✅ Message Received!
+            </h1>
+            <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 16px;">
+              We've got your message and will get back to you soon.
+            </p>
+          </div>
+          
+          <!-- Content -->
+          <div style="padding: 40px 30px;">
+            <h2 style="color: #333; margin-top: 0; font-size: 24px;">
+              Hi ${contact.name}! 👋
+            </h2>
+            
+            <p style="color: #666; line-height: 1.6; font-size: 16px; margin-bottom: 30px;">
+              Thank you for contacting ShopHub! We've received your message and our team will review it shortly.
+            </p>
+            
+            <!-- Contact Details -->
+            <div style="background: #f8f9fa; padding: 25px; border-radius: 8px; margin: 30px 0;">
+              <h3 style="color: #333; margin-top: 0; font-size: 18px; margin-bottom: 20px;">📋 Your Message Details:</h3>
+              
+              <div style="margin-bottom: 15px;">
+                <strong style="color: #374151;">Ticket ID:</strong> 
+                <span style="color: #6b7280; font-family: monospace; background: #e5e7eb; padding: 2px 6px; border-radius: 4px;">#${contact._id.toString().slice(-8).toUpperCase()}</span>
+              </div>
+              
+              <div style="margin-bottom: 15px;">
+                <strong style="color: #374151;">Subject:</strong> 
+                <span style="color: #6b7280;">${subjectLabels[contact.subject] || contact.subject}</span>
+              </div>
+              
+              <div style="margin-bottom: 15px;">
+                <strong style="color: #374151;">Priority:</strong> 
+                <span style="background: ${priorityColors[contact.priority]}; color: white; padding: 3px 8px; border-radius: 12px; font-size: 12px; text-transform: uppercase; font-weight: bold;">${contact.priority}</span>
+              </div>
+              
+              ${contact.orderNumber ? `
+                <div style="margin-bottom: 15px;">
+                  <strong style="color: #374151;">Order Number:</strong> 
+                  <span style="color: #6b7280; font-family: monospace;">${contact.orderNumber}</span>
+                </div>
+              ` : ''}
+              
+              <div style="margin-bottom: 15px;">
+                <strong style="color: #374151;">Submitted:</strong> 
+                <span style="color: #6b7280;">${new Date(contact.createdAt).toLocaleString()}</span>
+              </div>
+              
+              <div>
+                <strong style="color: #374151;">Your Message:</strong>
+                <div style="background: white; padding: 15px; border-radius: 6px; margin-top: 8px; border-left: 4px solid #10b981;">
+                  <p style="color: #374151; margin: 0; line-height: 1.6;">${contact.message.replace(/\n/g, '<br>')}</p>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Response Time -->
+            <div style="background: #dbeafe; padding: 20px; border-radius: 8px; border-left: 4px solid #3b82f6; margin: 30px 0;">
+              <h4 style="color: #1e40af; margin: 0 0 10px 0; font-size: 16px;">⏰ Expected Response Time:</h4>
+              <p style="color: #1e3a8a; margin: 0; font-size: 14px;">
+                ${contact.priority === 'urgent' ? 'Within 2-4 hours' : contact.priority === 'high' ? 'Within 4-8 hours' : contact.priority === 'medium' ? 'Within 12-24 hours' : 'Within 24-48 hours'} during business hours.
+              </p>
+            </div>
+            
+            <p style="color: #666; line-height: 1.6; font-size: 16px;">
+              If you need to add more information to your request, please reply to this email with your ticket ID: <strong>#${contact._id.toString().slice(-8).toUpperCase()}</strong>
+            </p>
+          </div>
+          
+          <!-- Footer -->
+          <div style="background: #333; color: white; padding: 30px; text-align: center;">
+            <p style="margin: 0; font-size: 16px; font-weight: bold;">ShopHub Customer Support</p>
+            <p style="margin: 10px 0 0 0; font-size: 14px; opacity: 0.8;">
+              We're here to help you have the best shopping experience
+            </p>
+            <p style="margin: 15px 0 0 0; font-size: 12px; opacity: 0.6;">
+              © 2024 ShopHub. All rights reserved.
+            </p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const text = `
+      Message Received - ShopHub
+      
+      Hi ${contact.name}!
+      
+      Thank you for contacting ShopHub! We've received your message and our team will review it shortly.
+      
+      Your Message Details:
+      - Ticket ID: #${contact._id.toString().slice(-8).toUpperCase()}
+      - Subject: ${subjectLabels[contact.subject] || contact.subject}
+      - Priority: ${contact.priority.toUpperCase()}
+      ${contact.orderNumber ? `- Order Number: ${contact.orderNumber}` : ''}
+      - Submitted: ${new Date(contact.createdAt).toLocaleString()}
+      - Your Message: ${contact.message}
+      
+      Expected Response Time: ${contact.priority === 'urgent' ? 'Within 2-4 hours' : contact.priority === 'high' ? 'Within 4-8 hours' : contact.priority === 'medium' ? 'Within 12-24 hours' : 'Within 24-48 hours'} during business hours.
+      
+      If you need to add more information to your request, please reply to this email with your ticket ID: #${contact._id.toString().slice(-8).toUpperCase()}
+      
+      ShopHub Customer Support
+      © 2024 ShopHub. All rights reserved.
+    `;
+
+    return await this.sendEmail({
+      to: contact.email,
+      subject: `✅ Message Received - Ticket #${contact._id.toString().slice(-8).toUpperCase()} - ShopHub`,
+      html,
+      text
+    });
+  }
+
+  /**
+   * Send contact notification email to admin
+   */
+  async sendContactNotification(contact) {
+    const adminEmail = process.env.ADMIN_EMAIL || process.env.FROM_EMAIL;
+    if (!adminEmail) {
+      console.warn('No admin email configured for contact notifications');
+      return { success: false, error: 'No admin email configured' };
+    }
+
+    const priorityColors = {
+      low: '#10b981',
+      medium: '#f59e0b', 
+      high: '#ef4444',
+      urgent: '#dc2626'
+    };
+
+    const subjectLabels = {
+      general: 'General Inquiry',
+      support: 'Customer Support',
+      order: 'Order Issue',
+      return: 'Return/Refund',
+      feedback: 'Feedback',
+      other: 'Other'
+    };
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>New Contact Form Submission</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+        <div style="max-width: 600px; margin: 0 auto; background-color: white;">
+          <!-- Header -->
+          <div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 30px 20px; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 24px; font-weight: bold;">
+              🔔 New Contact Form Submission
+            </h1>
+          </div>
+          
+          <!-- Content -->
+          <div style="padding: 30px;">
+            <div style="background: #f8f9fa; padding: 25px; border-radius: 8px; margin-bottom: 25px;">
+              <h3 style="color: #333; margin-top: 0; font-size: 18px; margin-bottom: 20px;">📋 Submission Details:</h3>
+              
+              <div style="margin-bottom: 15px;">
+                <strong>Ticket ID:</strong> 
+                <span style="font-family: monospace; background: #e5e7eb; padding: 2px 6px; border-radius: 4px;">#${contact._id.toString().slice(-8).toUpperCase()}</span>
+              </div>
+              
+              <div style="margin-bottom: 15px;">
+                <strong>Name:</strong> ${contact.name}
+              </div>
+              
+              <div style="margin-bottom: 15px;">
+                <strong>Email:</strong> 
+                <a href="mailto:${contact.email}" style="color: #3b82f6;">${contact.email}</a>
+              </div>
+              
+              ${contact.phone ? `
+                <div style="margin-bottom: 15px;">
+                  <strong>Phone:</strong> 
+                  <a href="tel:${contact.phone}" style="color: #3b82f6;">${contact.phone}</a>
+                </div>
+              ` : ''}
+              
+              <div style="margin-bottom: 15px;">
+                <strong>Subject:</strong> ${subjectLabels[contact.subject] || contact.subject}
+              </div>
+              
+              <div style="margin-bottom: 15px;">
+                <strong>Priority:</strong> 
+                <span style="background: ${priorityColors[contact.priority]}; color: white; padding: 3px 8px; border-radius: 12px; font-size: 12px; text-transform: uppercase; font-weight: bold;">${contact.priority}</span>
+              </div>
+              
+              ${contact.orderNumber ? `
+                <div style="margin-bottom: 15px;">
+                  <strong>Order Number:</strong> 
+                  <span style="font-family: monospace;">${contact.orderNumber}</span>
+                </div>
+              ` : ''}
+              
+              <div style="margin-bottom: 15px;">
+                <strong>Submitted:</strong> ${new Date(contact.createdAt).toLocaleString()}
+              </div>
+              
+              <div>
+                <strong>Message:</strong>
+                <div style="background: white; padding: 15px; border-radius: 6px; margin-top: 8px; border-left: 4px solid #f59e0b;">
+                  <p style="margin: 0; line-height: 1.6;">${contact.message.replace(/\n/g, '<br>')}</p>
+                </div>
+              </div>
+            </div>
+            
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/admin/contact/${contact._id}" 
+                 style="background: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+                View in Admin Panel
+              </a>
+            </div>
+            
+            <div style="background: #fef3c7; padding: 15px; border-radius: 6px; border-left: 4px solid #f59e0b;">
+              <p style="margin: 0; color: #92400e; font-size: 14px;">
+                <strong>Response Time Target:</strong> ${contact.priority === 'urgent' ? '2-4 hours' : contact.priority === 'high' ? '4-8 hours' : contact.priority === 'medium' ? '12-24 hours' : '24-48 hours'}
+              </p>
+            </div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    return await this.sendEmail({
+      to: adminEmail,
+      subject: `🔔 [${contact.priority.toUpperCase()}] New Contact: ${subjectLabels[contact.subject]} - #${contact._id.toString().slice(-8).toUpperCase()}`,
+      html
+    });
+  }
+
+  /**
+   * Send contact response email to user
+   */
+  async sendContactResponse(contact, responseMessage) {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Response to Your Message - ShopHub</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+        <div style="max-width: 600px; margin: 0 auto; background-color: white;">
+          <!-- Header -->
+          <div style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); padding: 40px 20px; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 28px; font-weight: bold;">
+              💬 We've Responded!
+            </h1>
+            <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 16px;">
+              Re: Ticket #${contact._id.toString().slice(-8).toUpperCase()}
+            </p>
+          </div>
+          
+          <!-- Content -->
+          <div style="padding: 40px 30px;">
+            <h2 style="color: #333; margin-top: 0; font-size: 24px;">
+              Hi ${contact.name}! 👋
+            </h2>
+            
+            <p style="color: #666; line-height: 1.6; font-size: 16px; margin-bottom: 30px;">
+              Thank you for your patience! Our team has reviewed your message and here's our response:
+            </p>
+            
+            <!-- Response -->
+            <div style="background: #f0f9ff; padding: 25px; border-radius: 8px; border-left: 4px solid #3b82f6; margin: 30px 0;">
+              <h3 style="color: #1e40af; margin-top: 0; font-size: 18px; margin-bottom: 15px;">📝 Our Response:</h3>
+              <div style="color: #374151; line-height: 1.6;">${responseMessage.replace(/\n/g, '<br>')}</div>
+            </div>
+            
+            <!-- Original Message -->
+            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 30px 0;">
+              <h4 style="color: #6b7280; margin-top: 0; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;">Your Original Message:</h4>
+              <p style="color: #374151; margin: 10px 0 0 0; line-height: 1.6; font-style: italic;">${contact.message.replace(/\n/g, '<br>')}</p>
+            </div>
+            
+            <p style="color: #666; line-height: 1.6; font-size: 16px;">
+              If you have any follow-up questions or need further assistance, please don't hesitate to reply to this email. 
+              Make sure to include your ticket ID: <strong>#${contact._id.toString().slice(-8).toUpperCase()}</strong>
+            </p>
+            
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/contact" 
+                 style="background: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+                Contact Us Again
+              </a>
+            </div>
+          </div>
+          
+          <!-- Footer -->
+          <div style="background: #333; color: white; padding: 30px; text-align: center;">
+            <p style="margin: 0; font-size: 16px; font-weight: bold;">ShopHub Customer Support</p>
+            <p style="margin: 10px 0 0 0; font-size: 14px; opacity: 0.8;">
+              Thank you for choosing ShopHub!
+            </p>
+            <p style="margin: 15px 0 0 0; font-size: 12px; opacity: 0.6;">
+              © 2024 ShopHub. All rights reserved.
+            </p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const text = `
+      Response to Your Message - ShopHub
+      
+      Hi ${contact.name}!
+      
+      Thank you for your patience! Our team has reviewed your message and here's our response:
+      
+      Our Response:
+      ${responseMessage}
+      
+      Your Original Message:
+      ${contact.message}
+      
+      If you have any follow-up questions or need further assistance, please don't hesitate to reply to this email. 
+      Make sure to include your ticket ID: #${contact._id.toString().slice(-8).toUpperCase()}
+      
+      ShopHub Customer Support
+      © 2024 ShopHub. All rights reserved.
+    `;
+
+    return await this.sendEmail({
+      to: contact.email,
+      subject: `💬 Response to Your Message - Ticket #${contact._id.toString().slice(-8).toUpperCase()} - ShopHub`,
+      html,
+      text
+    });
   }
 }
 

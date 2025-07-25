@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '../../hooks/redux';
 import { logout } from '../../store/slices/authSlice';
+import { fetchWishlist, selectWishlistItemCount } from '../../store/slices/wishlistSlice';
 import { 
   ShoppingCartIcon, 
   UserIcon, 
@@ -16,9 +17,17 @@ const Header: React.FC = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAppSelector((state) => state.auth);
   const { totalItems } = useAppSelector((state) => state.cart);
+  const wishlistItemCount = useAppSelector(selectWishlistItemCount);
   
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Fetch wishlist when user is authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      dispatch(fetchWishlist());
+    }
+  }, [dispatch, isAuthenticated]);
 
   const handleLogout = () => {
     dispatch(logout());
@@ -95,8 +104,13 @@ const Header: React.FC = () => {
           {/* Right side icons */}
           <div className="flex items-center space-x-4">
             {/* Wishlist - Hidden on mobile */}
-            <Link to="/wishlist" className="hidden sm:flex p-2 text-gray-700 hover:text-blue-600 transition-colors">
+            <Link to="/wishlist" className="hidden sm:flex p-2 text-gray-700 hover:text-blue-600 transition-colors relative">
               <HeartIcon className="h-6 w-6" />
+              {isAuthenticated && wishlistItemCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                  {wishlistItemCount}
+                </span>
+              )}
             </Link>
 
             {/* Cart */}

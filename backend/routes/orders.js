@@ -406,6 +406,200 @@ router.put('/:id/deliver', [auth, admin], async (req, res) => {
 });
 
 
+// @route    GET api/orders/track/:trackingNumber
+// @desc     Track order by tracking number (public)
+// @access   Public
+router.get('/track/:trackingNumber', async (req, res) => {
+  try {
+    const { trackingNumber } = req.params;
+    
+    // Find order by tracking number
+    const order = await Order.findOne({
+      $or: [
+        { 'trackingInfo.trackingNumber': trackingNumber },
+        { trackingNumber: trackingNumber },
+        { _id: trackingNumber.match(/^[0-9a-fA-F]{24}$/) ? trackingNumber : null }
+      ]
+    }).populate('user', 'name email');
+
+    if (!order) {
+      return res.status(404).json({ 
+        msg: 'Order not found. Please check your tracking number and try again.' 
+      });
+    }
+
+    // Create tracking history based on order status
+    const trackingHistory = [];
+
+    // Order placed
+    trackingHistory.push({
+      status: 'Order Placed',
+      description: 'Your order has been placed successfully',
+      date: order.createdAt,
+      completed: true
+    });
+
+    // Payment confirmed
+    if (order.isPaid) {
+      trackingHistory.push({
+        status: 'Payment Confirmed',
+        description: 'Payment has been confirmed and processed',
+        date: order.paidAt,
+        completed: true
+      });
+    }
+
+    // Order processing
+    if (order.isPaid) {
+      trackingHistory.push({
+        status: 'Processing',
+        description: 'Your order is being prepared for shipment',
+        date: order.paidAt,
+        completed: true
+      });
+    }
+
+    // Shipped
+    if (order.isShipped) {
+      trackingHistory.push({
+        status: 'Shipped',
+        description: order.trackingInfo?.carrier 
+          ? `Shipped via ${order.trackingInfo.carrier}` 
+          : 'Your order has been shipped',
+        date: order.shippedAt,
+        completed: true,
+        trackingUrl: order.trackingInfo?.trackingUrl
+      });
+    }
+
+    // Out for delivery (if shipped but not delivered after 1 day)
+    if (order.isShipped && !order.isDelivered) {
+      const shippedDate = new Date(order.shippedAt);
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      
+      if (shippedDate < oneDayAgo) {
+        trackingHistory.push({
+          status: 'Out for Delivery',
+          description: 'Your order is out for delivery',
+          date: new Date(shippedDate.getTime() + 24 * 60 * 60 * 1000),
+          completed: true
+        });
+      }
+    }
+
+    // Delivered
+    if (order.isDelivered) {
+      trackingHistory.push({
+        status: 'Delivered',
+        description: 'Your order has been delivered successfully',
+        date: order.deliveredAt,
+        completed: true
+      });
+    } else {
+      // Add expected delivery if not delivered
+      const expectedDelivery = order.estimatedDelivery || 
+        (order.shippedAt ? new Date(new Date(order.shippedAt).getTime() + 3 * 24 * 60 * 60 * 1000) : null);
+      
+      if (expectedDelivery) {
+        trackingHistory.push({
+          status: 'Expected Delivery',
+          description: `Expected to be delivered by ${expectedDelivery.toDateString()}`,
+          date: expectedDelivery,
+          completed: false,
+          estimated: true
+        });
+      }
+    }
+
+    // Return sanitized order data (remove sensitive information)
+    const sanitizedOrder = {
+      _id: order._id,
+      orderItems: order.orderItems.map(item => ({
+        name: item.name,
+        quantity: item.quantity,
+        image: item.image,
+        price: item.price
+      })),
+      shippingAddress: {
+        address: order.shippingAddress.address,
+        city: order.shippingAddress.city,
+        postalCode: order.shippingAddress.postalCode,
+        country: order.shippingAddress.country,
+        state: order.shippingAddress.state
+      },
+      totalPrice: order.totalPrice,
+      orderStatus: order.orderStatus,
+      isPaid: order.isPaid,
+      isShipped: order.isShipped,
+      isDelivered: order.isDelivered,
+      paidAt: order.paidAt,
+      shippedAt: order.shippedAt,
+      deliveredAt: order.deliveredAt,
+      trackingInfo: order.trackingInfo,
+      estimatedDelivery: order.estimatedDelivery,
+      createdAt: order.createdAt,
+      trackingHistory
+    };
+
+    res.json(sanitizedOrder);
+
+  } catch (err) {
+    console.error('Track order error:', err.message);
+    res.status(500).json({ error: 'Server Error' });
+  }
+});
+
+// @route    GET api/orders/track-by-order/:orderId
+// @desc     Track order by order ID with email verification
+// @access   Public
+router.post('/track-by-order', [
+  [
+    check('orderId', 'Order ID is required').not().isEmpty(),
+    check('email', 'Please include a valid email').isEmail()
+  ]
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+
+  const { orderId, email } = req.body;
+
+  try {
+    // Find order and verify email matches
+    const order = await Order.findById(orderId).populate('user', 'email');
+
+    if (!order) {
+      return res.status(404).json({ 
+        msg: 'Order not found. Please check your order ID and try again.' 
+      });
+    }
+
+    // Verify email matches (case insensitive)
+    if (order.user.email.toLowerCase() !== email.toLowerCase()) {
+      return res.status(401).json({ 
+        msg: 'Email does not match the order. Please check your email and try again.' 
+      });
+    }
+
+    // Redirect to tracking with tracking number or order ID
+    const trackingId = order.trackingInfo?.trackingNumber || order._id;
+    
+    res.json({
+      success: true,
+      trackingId,
+      redirectUrl: `/track/${trackingId}`
+    });
+
+  } catch (err) {
+    console.error('Track by order ID error:', err.message);
+    if (err.kind === 'ObjectId') {
+      return res.status(404).json({ msg: 'Order not found' });
+    }
+    res.status(500).json({ error: 'Server Error' });
+  }
+});
+
 // @route    GET api/orders/admin/all
 // @desc     Get all orders
 // @access   Private/Admin
